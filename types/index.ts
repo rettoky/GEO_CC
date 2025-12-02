@@ -67,28 +67,12 @@ export type {
 
 /**
  * Edge Function API 요청/응답 타입
+ * Re-export from Edge Function types for backward compatibility
  */
-
-// 분석 요청
-export interface AnalyzeRequest {
-  query: string           // 검색 쿼리 (필수)
-  domain?: string         // 타겟 도메인 (선택)
-  brand?: string          // 브랜드명 (선택)
-}
-
-// 분석 응답
-export interface AnalyzeResponse {
-  success: boolean
-  analysisId: string
-  data?: {
-    results: import('@/lib/supabase/types').AnalysisResults
-    summary: import('@/lib/supabase/types').AnalysisSummary
-  }
-  error?: {
-    message: string
-    code?: string
-  }
-}
+export type {
+  AnalyzeRequest,
+  AnalyzeResponse,
+} from '@/supabase/functions/analyze-query/llm/types'
 
 /**
  * UI 상태 타입

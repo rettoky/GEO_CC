@@ -1,6 +1,9 @@
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import type { AnalyzeRequest, AnalyzeResponse, AnalysisState } from '@/types'
+import type {
+  AnalyzeRequest,
+  AnalyzeResponse,
+} from '@/supabase/functions/analyze-query/llm/types'
+import type { AnalysisState } from '@/types'
 import type { AnalysisLog } from '@/components/analysis/AnalysisProgress'
 
 /**
@@ -14,8 +17,6 @@ export function useAnalysis() {
   })
   const [logs, setLogs] = useState<AnalysisLog[]>([])
   const [progress, setProgress] = useState(0)
-
-  const supabase = createClient()
 
   const addLog = (message: string, type: AnalysisLog['type'], llm?: string) => {
     setLogs((prev) => [
@@ -38,23 +39,29 @@ export function useAnalysis() {
     setProgress(10)
 
     try {
-      addLog('Edge Function 호출 중...', 'warning')
+      addLog('API 호출 중...', 'warning')
       setProgress(30)
 
-      // Edge Function 호출
-      const { data, error } = await supabase.functions.invoke('smart-task', {
-        body: request,
+      // Next.js API Proxy 호출 (→ Edge Function)
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(request),
       })
 
       setProgress(50)
       addLog('응답 수신 완료', 'success')
 
-      if (error) {
-        addLog(`오류 발생: ${error.message}`, 'error')
-        throw new Error(error.message || 'Failed to analyze')
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}))
+        const errorMessage = errorData.error?.message || 'Failed to analyze'
+        addLog(`오류 발생: ${errorMessage}`, 'error')
+        throw new Error(errorMessage)
       }
 
-      const response: AnalyzeResponse = data
+      const response: AnalyzeResponse = await res.json()
 
       if (!response.success) {
         addLog(`분석 실패: ${response.error?.message}`, 'error')
