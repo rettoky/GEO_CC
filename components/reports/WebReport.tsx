@@ -21,6 +21,7 @@ import type { ComprehensiveReport } from '@/lib/reports/report-generator'
 import { VisualizationDashboard } from '@/components/visualizations/VisualizationDashboard'
 import type { AnalysisResults } from '@/types'
 import type { Competitor } from '@/types/competitors'
+import { formatDateTime } from '@/lib/utils/format'
 
 interface WebReportProps {
   report: ComprehensiveReport
@@ -41,7 +42,7 @@ export function WebReport({ report, results, competitors }: WebReportProps) {
           <h1 className="text-3xl font-bold">종합 분석 보고서</h1>
         </div>
         <p className="text-gray-600">
-          생성일시: {report.generatedAt.toLocaleString('ko-KR')}
+          생성일시: {formatDateTime(report.generatedAt)}
         </p>
         <p className="text-gray-600">검색어: {report.query}</p>
         {report.myDomain && (

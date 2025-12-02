@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import type { ComprehensiveReport } from '@/lib/reports/report-generator'
+import { MESSAGES } from '@/lib/constants/labels'
 
 export const runtime = 'nodejs' // Playwright 사용을 위해 Node.js runtime 필요
 
@@ -26,7 +27,7 @@ export async function POST(request: NextRequest) {
 
     if (!report) {
       return NextResponse.json(
-        { error: '보고서 데이터가 필요합니다.' },
+        { error: MESSAGES.ERROR.NO_DATA },
         { status: 400 }
       )
     }
@@ -78,7 +79,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('PDF 생성 오류:', error)
     return NextResponse.json(
-      { error: 'PDF 생성에 실패했습니다.' },
+      { error: MESSAGES.ERROR.PDF_GENERATION_FAILED },
       { status: 500 }
     )
   }

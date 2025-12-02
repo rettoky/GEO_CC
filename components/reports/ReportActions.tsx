@@ -9,6 +9,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Download, Save, Share2, Loader2 } from 'lucide-react'
 import type { ComprehensiveReport } from '@/lib/reports/report-generator'
+import { LABELS, MESSAGES } from '@/lib/constants/labels'
 
 interface ReportActionsProps {
   report: ComprehensiveReport
@@ -34,7 +35,7 @@ export function ReportActions({ report, onSave }: ReportActionsProps) {
       })
 
       if (!response.ok) {
-        throw new Error('PDF 생성 실패')
+        throw new Error(MESSAGES.ERROR.PDF_GENERATION_FAILED)
       }
 
       const blob = await response.blob()
@@ -48,7 +49,7 @@ export function ReportActions({ report, onSave }: ReportActionsProps) {
       document.body.removeChild(a)
     } catch (error) {
       console.error('PDF 다운로드 오류:', error)
-      alert('PDF 다운로드에 실패했습니다.')
+      alert(MESSAGES.ERROR.PDF_GENERATION_FAILED)
     } finally {
       setIsGeneratingPDF(false)
     }
@@ -79,10 +80,10 @@ export function ReportActions({ report, onSave }: ReportActionsProps) {
     setIsSaving(true)
     try {
       await onSave()
-      alert('보고서가 저장되었습니다.')
+      alert(MESSAGES.SUCCESS.REPORT_SAVED)
     } catch (error) {
       console.error('저장 오류:', error)
-      alert('보고서 저장에 실패했습니다.')
+      alert(MESSAGES.ERROR.SAVE_FAILED)
     } finally {
       setIsSaving(false)
     }
@@ -94,10 +95,10 @@ export function ReportActions({ report, onSave }: ReportActionsProps) {
   const handleShare = async () => {
     try {
       await navigator.clipboard.writeText(window.location.href)
-      alert('공유 링크가 클립보드에 복사되었습니다.')
+      alert(MESSAGES.SUCCESS.LINK_COPIED)
     } catch (error) {
       console.error('공유 링크 복사 오류:', error)
-      alert('공유 링크 복사에 실패했습니다.')
+      alert(MESSAGES.ERROR.LINK_COPY_FAILED)
     }
   }
 
@@ -111,12 +112,12 @@ export function ReportActions({ report, onSave }: ReportActionsProps) {
         {isGeneratingPDF ? (
           <>
             <Loader2 className="h-4 w-4 animate-spin" />
-            PDF 생성 중...
+            {LABELS.REPORT.GENERATING}
           </>
         ) : (
           <>
             <Download className="h-4 w-4" />
-            PDF 다운로드
+            {LABELS.REPORT.DOWNLOAD_PDF}
           </>
         )}
       </Button>
@@ -127,7 +128,7 @@ export function ReportActions({ report, onSave }: ReportActionsProps) {
         className="flex items-center gap-2"
       >
         <Download className="h-4 w-4" />
-        JSON 다운로드
+        {LABELS.REPORT.DOWNLOAD_JSON}
       </Button>
 
       {onSave && (
@@ -140,12 +141,12 @@ export function ReportActions({ report, onSave }: ReportActionsProps) {
           {isSaving ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              저장 중...
+              {LABELS.STATUS.LOADING}
             </>
           ) : (
             <>
               <Save className="h-4 w-4" />
-              저장
+              {LABELS.ACTIONS.SAVE}
             </>
           )}
         </Button>
@@ -157,7 +158,7 @@ export function ReportActions({ report, onSave }: ReportActionsProps) {
         className="flex items-center gap-2"
       >
         <Share2 className="h-4 w-4" />
-        공유
+        {LABELS.ACTIONS.SHARE}
       </Button>
     </div>
   )
