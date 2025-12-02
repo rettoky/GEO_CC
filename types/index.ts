@@ -16,6 +16,55 @@ export type {
   Analysis,
 } from '@/lib/supabase/types'
 
+// Query Variations types
+export type {
+  QueryVariation,
+  CreateQueryVariationInput,
+  GeneratedVariation,
+  VariationGenerationResult,
+  VariationGenerationInput,
+  VariationType,
+  GenerationMethod,
+} from './queryVariations'
+
+// Competitors types
+export type {
+  Competitor,
+  CreateCompetitorInput,
+  CompetitorScore,
+  DomainData,
+  DetectionMethod,
+  LLMAppearances,
+} from './competitors'
+
+// Page Crawl types
+export type {
+  PageCrawl,
+  CreatePageCrawlInput,
+  PageCrawlResult,
+  RobotsCheckResult,
+  CrawlStatus,
+  MetaTags,
+  ContentStructure,
+} from './pageCrawl'
+
+// Reports types
+export type {
+  Report,
+  CreateReportInput,
+  GeneratePDFRequest,
+  GeneratePDFResponse,
+  ReportWebData,
+  ExecutiveSummary,
+  QueryAnalysisSection,
+  CitationAnalysisSection,
+  CompetitorComparisonSection,
+  PageStructureInsightsSection,
+  RecommendationItem,
+  ReportType,
+  PDFStatus,
+} from './reports'
+
 /**
  * Edge Function API 요청/응답 타입
  */
