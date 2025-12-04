@@ -3,9 +3,6 @@
  * 여러 URL 크롤링 오케스트레이션
  */
 
-import { createClient } from '@/lib/supabase/client'
-import { createPageCrawlsBulk } from '@/lib/supabase/queries/pageCrawls'
-import { isAllowedByRobots } from './robots-checker'
 import type { PageCrawlResult } from '@/types/pageCrawl'
 import type { LLMResult } from '@/types'
 
@@ -77,7 +74,7 @@ export async function crawlPages(
   })
 
   // 3. 배치별로 크롤링 수행
-  const allResults: any[] = []
+  const allResults: PageCrawlResult[] = []
 
   for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
     const batch = batches[batchIndex]

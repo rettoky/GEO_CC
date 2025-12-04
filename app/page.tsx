@@ -1,32 +1,59 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useAnalysis } from '@/hooks/useAnalysis'
+import { useAnalysisForm } from '@/contexts/AnalysisFormContext'
 import { QueryInput, type QueryInputData } from '@/components/analysis/QueryInput'
 import { ErrorMessage } from '@/components/analysis/ErrorMessage'
 import { LLMResultCard } from '@/components/analysis/LLMResultCard'
 import { AnalysisProgress } from '@/components/analysis/AnalysisProgress'
 import { VisibilityDashboard } from '@/components/analysis/VisibilityDashboard'
 import { CompetitorComparison } from '@/components/analysis/CompetitorComparison'
+import { BrandMentionCard } from '@/components/analysis/BrandMentionCard'
 import { QueryVariationGenerator } from '@/components/analysis/QueryVariationGenerator'
 import { VariationList } from '@/components/analysis/VariationList'
 import { BatchAnalysisProgressTracker } from '@/components/analysis/BatchAnalysisProgress'
+import { LLMComparisonChart } from '@/components/analysis/LLMComparisonChart'
+import { ShareButton } from '@/components/analysis/ShareButton'
+import { QueryComparisonView } from '@/components/analysis/QueryComparisonView'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 import { analyzeBatchVariations, type BatchAnalysisProgress } from '@/lib/analysis/variation-orchestrator'
-import type { GeneratedVariation } from '@/types/queryVariations'
+import type { AnalysisResults, AnalysisSummary } from '@/types'
+
+interface QueryResultHistory {
+  id: string
+  query: string
+  domain?: string
+  brand?: string
+  results: AnalysisResults
+  summary: AnalysisSummary
+  timestamp: Date
+}
 
 /**
  * 메인 페이지 - 쿼리 입력 및 분석 결과 표시 (T041)
  */
 export default function Home() {
+  const router = useRouter()
   const { analyze, isLoading, isSuccess, data, error, logs, progress } = useAnalysis()
   const { toast } = useToast()
-  const [queryData, setQueryData] = useState<QueryInputData | null>(null)
-  const [variations, setVariations] = useState<GeneratedVariation[]>([])
-  const [showVariationGenerator, setShowVariationGenerator] = useState(false)
+
+  // Context에서 폼 상태 가져오기 (탭 이동 시 유지됨)
+  const {
+    queryData,
+    setQueryData,
+    variations,
+    setVariations,
+    showVariationGenerator,
+    setShowVariationGenerator,
+  } = useAnalysisForm()
+
   const [batchProgress, setBatchProgress] = useState<BatchAnalysisProgress | null>(null)
   const [isBatchAnalyzing, setIsBatchAnalyzing] = useState(false)
+  const [queryHistory, setQueryHistory] = useState<QueryResultHistory[]>([])
+  const [showComparison, setShowComparison] = useState(false)
 
   const handleQueryInput = (inputData: QueryInputData) => {
     setQueryData(inputData)
@@ -49,11 +76,25 @@ export default function Home() {
     if (!queryData) return
 
     try {
-      await analyze({
+      const result = await analyze({
         query: queryData.query,
         domain: queryData.domain,
         brand: queryData.brand,
       })
+
+      // 분석 결과를 히스토리에 추가
+      if (result?.data) {
+        const historyEntry: QueryResultHistory = {
+          id: crypto.randomUUID(),
+          query: queryData.query,
+          domain: queryData.domain,
+          brand: queryData.brand,
+          results: result.data.results,
+          summary: result.data.summary,
+          timestamp: new Date(),
+        }
+        setQueryHistory((prev) => [...prev, historyEntry])
+      }
 
       toast({
         title: '분석 완료',
@@ -68,6 +109,11 @@ export default function Home() {
     }
   }
 
+  // 히스토리에서 쿼리 제거
+  const handleRemoveFromHistory = (id: string) => {
+    setQueryHistory((prev) => prev.filter((q) => q.id !== id))
+  }
+
   const handleBatchAnalysis = async () => {
     if (!queryData) return
 
@@ -78,7 +124,7 @@ export default function Home() {
       // 임시 분석 ID 생성 (실제로는 서버에서 생성해야 함)
       const tempAnalysisId = crypto.randomUUID()
 
-      await analyzeBatchVariations(
+      const result = await analyzeBatchVariations(
         tempAnalysisId,
         queryData.query,
         variations,
@@ -91,8 +137,15 @@ export default function Home() {
 
       toast({
         title: '배치 분석 완료',
-        description: `${variations.length}개 변형에 대한 분석이 완료되었습니다`,
+        description: `${variations.length + 1}개 쿼리에 대한 분석이 완료되었습니다. 결과 페이지로 이동합니다.`,
       })
+
+      // 분석 결과 상세 페이지로 이동
+      if (result.analysisId) {
+        setTimeout(() => {
+          router.push(`/analysis/${result.analysisId}`)
+        }, 1500) // 토스트 메시지를 볼 수 있도록 잠시 지연
+      }
     } catch (err) {
       toast({
         title: '배치 분석 실패',
@@ -108,9 +161,9 @@ export default function Home() {
 
   return (
     <div className="space-y-6">
-      <QueryInput onSubmit={handleQueryInput} isLoading={isAnalyzing} />
+      <QueryInput onSubmit={handleQueryInput} isLoading={isAnalyzing} initialData={queryData} />
 
-      {/* 쿼리 변형 생성 버튼 */}
+      {/* 쿼리 변형 생성 버튼 (변형이 없을 때만) */}
       {queryData && !showVariationGenerator && variations.length === 0 && !isAnalyzing && (
         <div className="flex justify-center">
           <Button
@@ -123,13 +176,12 @@ export default function Home() {
         </div>
       )}
 
-      {/* 쿼리 변형 생성기 */}
-      {showVariationGenerator && queryData && (
+      {/* 쿼리 변형 생성기 - 변형 없을 때 전체 너비 */}
+      {showVariationGenerator && queryData && variations.length === 0 && (
         <QueryVariationGenerator
           baseQuery={queryData.query}
           onVariationsGenerated={(vars) => {
             setVariations(vars)
-            setShowVariationGenerator(false)
             toast({
               title: '변형 생성 완료',
               description: `${vars.length}개의 쿼리 변형이 생성되었습니다`,
@@ -138,13 +190,38 @@ export default function Home() {
         />
       )}
 
-      {/* 생성된 변형 목록 */}
-      {variations.length > 0 && !isAnalyzing && (
-        <VariationList variations={variations} onChange={setVariations} />
+      {/* 2컬럼 레이아웃: 생성기 + 생성된 변형 목록 */}
+      {queryData && variations.length > 0 && !isAnalyzing && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* 좌측: 컴팩트 생성기 */}
+          <div className="lg:col-span-1">
+            <QueryVariationGenerator
+              baseQuery={queryData.query}
+              onVariationsGenerated={(vars) => {
+                setVariations(vars)
+                toast({
+                  title: '변형 재생성 완료',
+                  description: `${vars.length}개의 쿼리 변형이 생성되었습니다`,
+                })
+              }}
+              compact
+              hasVariations
+            />
+          </div>
+          {/* 우측: 생성된 변형 목록 */}
+          <div className="lg:col-span-2">
+            <VariationList
+              variations={variations}
+              onChange={setVariations}
+              compact
+              maxHeight="350px"
+            />
+          </div>
+        </div>
       )}
 
       {/* 분석 시작 버튼 */}
-      {queryData && !isAnalyzing && !showVariationGenerator && (
+      {queryData && !isAnalyzing && !(showVariationGenerator && variations.length === 0) && (
         <div className="flex justify-center">
           <Button onClick={handleStartAnalysis} size="lg" className="min-w-[200px]">
             {variations.length > 0
@@ -178,6 +255,36 @@ export default function Home() {
       {/* 성공 상태 - 결과 표시 */}
       {isSuccess && data?.data && (
         <div className="space-y-6">
+          {/* 액션 버튼 영역 */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {queryHistory.length > 1 && (
+                <Button
+                  variant={showComparison ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setShowComparison(!showComparison)}
+                >
+                  {showComparison ? '비교 숨기기' : `${queryHistory.length}개 쿼리 비교`}
+                </Button>
+              )}
+            </div>
+            <ShareButton
+              query={queryData?.query || ''}
+              domain={queryData?.domain}
+              brand={queryData?.brand}
+              results={data.data.results}
+              summary={data.data.summary}
+            />
+          </div>
+
+          {/* 쿼리 비교 뷰 */}
+          {showComparison && queryHistory.length > 1 && (
+            <QueryComparisonView
+              queryResults={queryHistory}
+              onRemoveQuery={handleRemoveFromHistory}
+            />
+          )}
+
           {/* 핵심 지표: 내 도메인/브랜드 노출 현황 */}
           <VisibilityDashboard
             summary={data.data.summary}
@@ -186,10 +293,49 @@ export default function Home() {
             myBrand={queryData?.brand}
           />
 
-          {/* 경쟁사 비교 분석 */}
+          {/* LLM 성능 비교 차트 */}
+          <LLMComparisonChart
+            results={data.data.results}
+            summary={data.data.summary}
+            myDomain={queryData?.domain}
+          />
+
+          {/* 내 도메인 경쟁력 분석 (독립 행) */}
           <CompetitorComparison
             results={data.data.results}
             myDomain={queryData?.domain}
+            crossValidation={data.data.crossValidation}
+            section="myDomain"
+          />
+
+          {/* 상위 경쟁사 분석 + 브랜드 언급 분석 (2컬럼) */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <CompetitorComparison
+              results={data.data.results}
+              myDomain={queryData?.domain}
+              crossValidation={data.data.crossValidation}
+              section="topCompetitors"
+            />
+            <BrandMentionCard
+              brandMentionAnalysis={data.data.summary.brandMentionAnalysis}
+              myBrand={queryData?.brand}
+            />
+          </div>
+
+          {/* 전체 도메인 순위 */}
+          <CompetitorComparison
+            results={data.data.results}
+            myDomain={queryData?.domain}
+            crossValidation={data.data.crossValidation}
+            section="ranking"
+          />
+
+          {/* GEO 최적화 권장사항 */}
+          <CompetitorComparison
+            results={data.data.results}
+            myDomain={queryData?.domain}
+            crossValidation={data.data.crossValidation}
+            section="recommendations"
           />
 
           {/* LLM별 상세 결과 (접어둔 상태) */}

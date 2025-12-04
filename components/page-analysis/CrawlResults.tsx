@@ -8,7 +8,7 @@
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion'
-import { CheckCircle, XCircle, Ban, ExternalLink } from 'lucide-react'
+import { CheckCircle, XCircle, Ban, ExternalLink, Clock } from 'lucide-react'
 import type { PageCrawl } from '@/types/pageCrawl'
 
 interface CrawlResultsProps {
@@ -107,12 +107,14 @@ function CrawlResultCard({
   isMine?: boolean
 }) {
   const statusIcon = {
+    pending: <Clock className="text-gray-500 flex-shrink-0" size={20} />,
     success: <CheckCircle className="text-green-500 flex-shrink-0" size={20} />,
     blocked_robots: <Ban className="text-yellow-500 flex-shrink-0" size={20} />,
     failed: <XCircle className="text-red-500 flex-shrink-0" size={20} />,
   }
 
   const statusLabel = {
+    pending: '대기 중',
     success: '성공',
     blocked_robots: 'robots.txt 차단',
     failed: '실패',

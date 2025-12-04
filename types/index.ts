@@ -3,6 +3,9 @@
  * 클라이언트와 Edge Function에서 공유
  */
 
+// Import AnalyzeResponse for use within this file
+import type { AnalyzeResponse as AnalyzeResponseType } from '@/lib/supabase/types'
+
 // Re-export Supabase types
 export type {
   LLMType,
@@ -14,7 +17,13 @@ export type {
   CrossValidation,
   CrossValidationItem,
   Analysis,
+  AnalyzeRequest,
+  AnalyzeResponse,
+  BrandMention,
+  BrandMentionAnalysis,
 } from '@/lib/supabase/types'
+
+export { INSURANCE_COMPETITOR_BRANDS } from '@/lib/supabase/types'
 
 // Query Variations types
 export type {
@@ -65,14 +74,6 @@ export type {
   PDFStatus,
 } from './reports'
 
-/**
- * Edge Function API 요청/응답 타입
- * Re-export from Edge Function types for backward compatibility
- */
-export type {
-  AnalyzeRequest,
-  AnalyzeResponse,
-} from '@/supabase/functions/analyze-query/llm/types'
 
 /**
  * UI 상태 타입
@@ -82,6 +83,6 @@ export type AnalysisStatus = 'idle' | 'loading' | 'success' | 'error'
 
 export interface AnalysisState {
   status: AnalysisStatus
-  data: AnalyzeResponse | null
+  data: AnalyzeResponseType | null
   error: Error | null
 }

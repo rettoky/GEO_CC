@@ -1,18 +1,21 @@
 import type { Metadata } from "next";
-import localFont from "next/font/local";
+import { Inter, Noto_Sans_KR } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/layout/Header";
 import { Toaster } from "@/components/ui/toaster";
+import { AnalysisFormProvider } from "@/contexts/AnalysisFormContext";
 
-const geistSans = localFont({
-  src: "./fonts/GeistVF.woff",
-  variable: "--font-geist-sans",
-  weight: "100 900",
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
 });
-const geistMono = localFont({
-  src: "./fonts/GeistMonoVF.woff",
-  variable: "--font-geist-mono",
-  weight: "100 900",
+
+const notoSansKr = Noto_Sans_KR({
+  subsets: ["latin"],
+  weight: ["100", "300", "400", "500", "700", "900"],
+  variable: "--font-noto-sans-kr",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -28,13 +31,15 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${inter.variable} ${notoSansKr.variable} font-sans antialiased bg-background text-foreground`}
       >
-        <Header />
-        <main className="container mx-auto py-6">
-          {children}
-        </main>
-        <Toaster />
+        <AnalysisFormProvider>
+          <Header />
+          <main className="container mx-auto py-8 px-4 md:px-6">
+            {children}
+          </main>
+          <Toaster />
+        </AnalysisFormProvider>
       </body>
     </html>
   );

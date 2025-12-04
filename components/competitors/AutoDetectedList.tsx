@@ -64,10 +64,11 @@ export function AutoDetectedList({
       })
 
       onConfirm()
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '알 수 없는 오류'
       toast({
         title: '경쟁사 확인 실패',
-        description: error.message,
+        description: message,
         variant: 'destructive',
       })
     } finally {

@@ -1,29 +1,31 @@
 /**
- * GPT-4o Query Variation Generator
+ * Gemini Query Variation Generator
  * 기본 쿼리에서 다양한 검색 쿼리 변형을 생성
  */
 
-import OpenAI from 'openai'
 import type {
   VariationGenerationInput,
   GeneratedVariation,
   VariationGenerationResult,
 } from '@/types/queryVariations'
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent'
 
 /**
- * GPT-4o를 사용하여 쿼리 변형 생성
+ * Gemini를 사용하여 쿼리 변형 생성
  */
 export async function generateQueryVariations(
   input: VariationGenerationInput
 ): Promise<VariationGenerationResult> {
   const { baseQuery, productCategory, productName, count } = input
 
+  const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY
+  if (!apiKey) {
+    throw new Error('GOOGLE_GENERATIVE_AI_API_KEY 환경 변수가 설정되지 않았습니다')
+  }
+
   // 프롬프트 구성
-  const systemPrompt = `당신은 SEO와 검색 쿼리 전문가입니다.
+  const prompt = `당신은 SEO와 검색 쿼리 전문가입니다.
 사용자의 기본 검색 쿼리를 바탕으로 실제 사용자가 검색할 만한 다양한 변형 쿼리를 생성하세요.
 
 변형 타입:
@@ -37,15 +39,15 @@ export async function generateQueryVariations(
 2. 검색 의도가 명확해야 함
 3. 4가지 타입을 골고루 분포
 4. 실제 사용자가 입력할 법한 쿼리
-5. 중복 없이 다양한 변형`
+5. 중복 없이 다양한 변형
 
-  const userPrompt = `기본 쿼리: "${baseQuery}"
+기본 쿼리: "${baseQuery}"
 ${productCategory ? `상품 카테고리: "${productCategory}"` : ''}
 ${productName ? `상품명: "${productName}"` : ''}
 
 위 정보를 바탕으로 ${count}개의 다양한 검색 쿼리를 생성하세요.
 
-JSON 형식으로 반환:
+반드시 아래 JSON 형식으로만 반환하세요 (다른 텍스트 없이):
 {
   "variations": [
     {
@@ -57,29 +59,58 @@ JSON 형식으로 반환:
 }`
 
   try {
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.8, // 다양성을 위해 약간 높게
-      max_tokens: 2000,
+    const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [{ text: prompt }],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.8,
+          maxOutputTokens: 2000,
+          responseMimeType: 'application/json',
+        },
+      }),
     })
 
-    const responseText = completion.choices[0].message.content || '{}'
-    const parsed = JSON.parse(responseText)
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`Gemini API 오류 (${response.status}): ${errorText}`)
+    }
+
+    const data = await response.json()
+
+    // Gemini 응답에서 텍스트 추출
+    const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}'
+
+    // JSON 파싱 (코드 블록 제거)
+    const cleanedText = responseText
+      .replace(/```json\n?/g, '')
+      .replace(/```\n?/g, '')
+      .trim()
+
+    const parsed = JSON.parse(cleanedText)
+
+    // 토큰 사용량 계산 (Gemini는 usageMetadata 사용)
+    const tokensUsed =
+      (data.usageMetadata?.promptTokenCount || 0) +
+      (data.usageMetadata?.candidatesTokenCount || 0)
 
     return {
       variations: parsed.variations || [],
-      modelUsed: completion.model,
-      tokensUsed: completion.usage?.total_tokens || 0,
+      modelUsed: 'gemini-2.0-flash',
+      tokensUsed,
       rawResponse: responseText,
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Query variation generation failed:', error)
-    throw new Error(`GPT-4o API 오류: ${error.message}`)
+    const message = error instanceof Error ? error.message : '알 수 없는 오류'
+    throw new Error(`Gemini API 오류: ${message}`)
   }
 }
 

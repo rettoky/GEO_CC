@@ -53,7 +53,7 @@ export interface PageCrawl {
   crawl_status: CrawlStatus
   html_content: string | null
   meta_tags: MetaTags | null
-  schema_markup: any[] | null
+  schema_markup: Record<string, unknown>[] | null
   content_structure: ContentStructure | null
   robots_txt_allowed: boolean | null
   error_message: string | null
@@ -71,7 +71,7 @@ export interface CreatePageCrawlInput {
   crawl_status?: CrawlStatus
   html_content?: string
   meta_tags?: MetaTags
-  schema_markup?: any[]
+  schema_markup?: Record<string, unknown>[]
   content_structure?: ContentStructure
   robots_txt_allowed?: boolean
   error_message?: string
@@ -84,7 +84,7 @@ export interface PageCrawlResult {
   url: string
   status: 'success' | 'failed' | 'blocked_robots'
   metaTags?: MetaTags
-  schemaMarkup?: any[]
+  schemaMarkup?: Record<string, unknown>[]
   contentStructure?: ContentStructure
   error?: string
 }
@@ -96,4 +96,24 @@ export interface RobotsCheckResult {
   allowed: boolean
   reason?: string
   robotsTxt?: string
+}
+
+/**
+ * 페이지 크롤링 데이터 (리포트용)
+ */
+export interface PageCrawlData {
+  url: string
+  domain: string
+  success: boolean
+  load_time_ms?: number
+  structured_data?: {
+    title?: string
+    meta_description?: string
+    headings?: {
+      h1?: string[]
+      h2?: string[]
+      h3?: string[]
+    }
+  }
+  error?: string
 }

@@ -73,7 +73,7 @@ export function ManualInput({
       await createCompetitor(supabase, {
         analysis_id: analysisId,
         domain: domain.trim().toLowerCase(),
-        brand_name: brandName.trim() || null,
+        brand_name: brandName.trim() || undefined,
         detection_method: 'manual',
         citation_count: 0,
         is_confirmed: true,
@@ -89,10 +89,11 @@ export function ManualInput({
       setBrandName('')
 
       onAdd()
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '알 수 없는 오류'
       toast({
         title: '경쟁사 추가 실패',
-        description: error.message,
+        description: message,
         variant: 'destructive',
       })
     } finally {
@@ -112,10 +113,11 @@ export function ManualInput({
       })
 
       onAdd()
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '알 수 없는 오류'
       toast({
         title: '경쟁사 삭제 실패',
-        description: error.message,
+        description: message,
         variant: 'destructive',
       })
     } finally {

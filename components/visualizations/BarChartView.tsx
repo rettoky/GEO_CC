@@ -35,7 +35,7 @@ export function BarChartView({
 
   // Recharts용 데이터 변환
   const rechartsData = chartData.categories.map((category, index) => {
-    const dataPoint: any = { name: category }
+    const dataPoint: Record<string, string | number> = { name: category }
     chartData.series.forEach((series) => {
       dataPoint[series.name] = series.data[index]
     })

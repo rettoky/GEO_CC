@@ -43,7 +43,7 @@ export async function callClaude(query: string): Promise<LLMResult> {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-3-5-haiku-20241022',
         max_tokens: 4096,
         tools: [
           {
@@ -65,6 +65,7 @@ export async function callClaude(query: string): Promise<LLMResult> {
     }
 
     const data: ClaudeResponse = await response.json()
+    console.log('[DEBUG Claude] Raw response:', JSON.stringify(data))
     const responseTime = Date.now() - startTime
 
     // content 블록에서 텍스트와 web_search_tool_result 추출
@@ -86,7 +87,7 @@ export async function callClaude(query: string): Promise<LLMResult> {
 
     return {
       success: true,
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-3-5-haiku-20241022',
       answer,
       citations,
       responseTime,
@@ -96,7 +97,7 @@ export async function callClaude(query: string): Promise<LLMResult> {
     const responseTime = Date.now() - startTime
     return {
       success: false,
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-3-5-haiku-20241022',
       answer: '',
       citations: [],
       responseTime,

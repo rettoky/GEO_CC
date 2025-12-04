@@ -103,8 +103,7 @@ export function generateBarChartData(
  */
 export function generatePieChartData(
   results: AnalysisResults,
-  myDomain?: string,
-  competitors: Competitor[] = []
+  myDomain?: string
 ): PieChartData {
   const domainCounts: Record<string, number> = {}
 

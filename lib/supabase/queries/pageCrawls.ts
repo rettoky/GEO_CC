@@ -131,7 +131,7 @@ export async function updatePageCrawlSuccess(
   result: {
     html_content?: string
     meta_tags: MetaTags
-    schema_markup?: any[]
+    schema_markup?: Record<string, unknown>[]
     content_structure: ContentStructure
     robots_txt_allowed: boolean
   }

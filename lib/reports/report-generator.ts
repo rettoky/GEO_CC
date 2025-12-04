@@ -3,7 +3,7 @@
  * 종합 보고서 데이터 집계
  */
 
-import type { AnalysisResults } from '@/types'
+import type { AnalysisResults, UnifiedCitation } from '@/types'
 import type { Competitor } from '@/types/competitors'
 import type { PageCrawlData } from '@/types/pageCrawl'
 
@@ -81,8 +81,7 @@ export function generateReportSummary(
 
   // 전체 인용 횟수 계산
   let totalCitations = 0
-  let myDomainCitations = 0
-  let myDomainPositions: number[] = []
+  const myDomainPositions: number[] = []
 
   const llmCoverage = llms.map((llmName) => {
     const llmKey = llmName.toLowerCase() as keyof AnalysisResults
@@ -97,7 +96,6 @@ export function generateReportSummary(
       : []
 
     if (myCitations.length > 0) {
-      myDomainCitations += myCitations.length
       myDomainPositions.push(...myCitations.map((c) => c.position))
     }
 
@@ -122,7 +120,7 @@ export function generateReportSummary(
   const allDomains = new Set<string>()
   for (const result of Object.values(results)) {
     if (result?.success) {
-      result.citations.forEach((c) => allDomains.add(c.domain))
+      result.citations.forEach((c: UnifiedCitation) => allDomains.add(c.domain))
     }
   }
 
@@ -134,7 +132,7 @@ export function generateReportSummary(
 
   return {
     totalCitations,
-    myDomainRank: myDomainRank > 0 ? myDomainRank : null,
+    myDomainRank: myDomainRank !== null && myDomainRank > 0 ? myDomainRank : null,
     totalDomains: allDomains.size,
     llmCoverage,
     avgPosition,

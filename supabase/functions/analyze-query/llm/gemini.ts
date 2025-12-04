@@ -2,7 +2,18 @@
  * Gemini API 호출 함수
  */
 
-import type { LLMResult, UnifiedCitation } from './types.ts'
+import type { LLMResult, UnifiedCitation, TextSpan } from './types.ts'
+
+/**
+ * 제외할 내부 서비스 도메인 목록
+ * 이 도메인들은 실제 콘텐츠 제공자가 아닌 LLM/검색 인프라 도메인
+ */
+const EXCLUDED_DOMAINS = [
+  'vertexaisearch.cloud.google.com',
+  'googleapis.com',
+  'googleusercontent.com',
+  'gstatic.com',
+]
 
 interface GeminiGroundingChunk {
   web?: {
@@ -77,12 +88,17 @@ export async function callGemini(query: string): Promise<LLMResult> {
       throw new Error(`Gemini API error: ${response.status}`)
     }
 
-    const data: GeminiResponse = await response.json()
+    const data = await response.json()
+    console.log('[DEBUG Gemini] Raw response:', JSON.stringify(data))
     const responseTime = Date.now() - startTime
 
-    const candidate = data.candidates[0]
-    const answer = candidate?.content?.parts?.map(p => p.text).join('') || ''
+    const candidate = data.candidates?.[0]
+    const answer = candidate?.content?.parts?.map((p: {text?: string}) => p.text).join('') || ''
     const groundingMetadata = candidate?.groundingMetadata
+
+    // 디버그: groundingMetadata 존재 여부 확인
+    console.log('[DEBUG Gemini] groundingMetadata exists:', !!groundingMetadata)
+    console.log('[DEBUG Gemini] groundingChunks:', JSON.stringify(groundingMetadata?.groundingChunks))
 
     const citations: UnifiedCitation[] = []
 
@@ -92,14 +108,42 @@ export async function callGemini(query: string): Promise<LLMResult> {
 
       chunks.forEach((chunk, index) => {
         if (chunk.web) {
+          // Gemini의 URI는 vertexaisearch.cloud.google.com 리다이렉트이므로
+          // title 필드에서 실제 도메인을 추출 (예: "wikipedia.org", "naver.com")
+          const domain = chunk.web.title?.toLowerCase().replace(/^www\./, '') || ''
+
+          // 빈 도메인이면 건너뛰기
+          if (!domain) {
+            return
+          }
+
           // 이 chunk를 참조하는 supports 찾기
           const relatedSupports = supports.filter(
             s => s.groundingChunkIndices?.includes(index)
           )
 
-          const confidenceScores = relatedSupports
-            .flatMap(s => s.confidenceScores || [])
-            .filter(score => score !== undefined)
+          const confidenceScores: number[] = []
+          const textSpans: TextSpan[] = []
+
+          // 각 support에서 confidence scores와 text spans 추출 (방법론 문서 Section 2.3)
+          relatedSupports.forEach(support => {
+            // confidence score 추출
+            const supportIndex = support.groundingChunkIndices?.indexOf(index) ?? -1
+            if (supportIndex >= 0 && support.confidenceScores?.[supportIndex] !== undefined) {
+              const confidence = support.confidenceScores[supportIndex]
+              confidenceScores.push(confidence)
+
+              // text span 추출 (segment 정보)
+              if (support.segment) {
+                textSpans.push({
+                  start: support.segment.startIndex ?? 0,
+                  end: support.segment.endIndex ?? 0,
+                  text: support.segment.text ?? '',
+                  confidence,
+                })
+              }
+            }
+          })
 
           const avgConfidence =
             confidenceScores.length > 0
@@ -112,7 +156,8 @@ export async function callGemini(query: string): Promise<LLMResult> {
               index + 1,
               answer,
               avgConfidence,
-              confidenceScores
+              confidenceScores,
+              textSpans
             )
           )
         }
@@ -126,6 +171,13 @@ export async function callGemini(query: string): Promise<LLMResult> {
       citations,
       responseTime,
       timestamp: new Date().toISOString(),
+      // 디버그 정보 추가
+      _debug: {
+        hasGroundingMetadata: !!groundingMetadata,
+        groundingChunksCount: groundingMetadata?.groundingChunks?.length ?? 0,
+        groundingSupportsCount: groundingMetadata?.groundingSupports?.length ?? 0,
+        rawGroundingMetadata: groundingMetadata,
+      },
     }
   } catch (error) {
     const responseTime = Date.now() - startTime
@@ -142,18 +194,23 @@ export async function callGemini(query: string): Promise<LLMResult> {
 }
 
 /**
- * Gemini 인용을 UnifiedCitation으로 변환
+ * Gemini 인용을 UnifiedCitation으로 변환 (방법론 문서 Section 2.3)
+ * textSpans에 groundingSupports의 segment 정보 포함
  */
 function normalizeGeminiCitation(
   web: { uri: string; title?: string },
   position: number,
   answer: string,
   avgConfidence: number | null,
-  confidenceScores: number[]
+  confidenceScores: number[],
+  textSpans: TextSpan[]
 ): UnifiedCitation {
-  const domain = extractDomain(web.uri)
+  // Gemini의 URI는 vertexaisearch.cloud.google.com 리다이렉트
+  // 실제 도메인은 title 필드에 있음 (예: "wikipedia.org", "naver.com")
+  const domain = web.title?.toLowerCase().replace(/^www\./, '') || extractDomain(web.uri)
   const cleanUrl = removeQueryParams(web.uri)
-  const mentionCount = countMentions(web.uri, answer)
+  // Gemini는 URL 문자열 매칭 대신 textSpans.length를 사용
+  const mentionCount = textSpans.length > 0 ? textSpans.length : 1
 
   return {
     id: crypto.randomUUID(),
@@ -168,7 +225,7 @@ function normalizeGeminiCitation(
     mentionCount,
     avgConfidence,
     confidenceScores,
-    textSpans: [],
+    textSpans,
   }
 }
 
@@ -201,11 +258,12 @@ function removeQueryParams(url: string): string {
 }
 
 /**
- * 답변에서 URL 언급 횟수 카운트
+ * 제외 도메인 여부 확인
+ * LLM/검색 인프라 내부 도메인은 경쟁력 분석에서 제외
  */
-function countMentions(url: string, answer: string): number {
-  const escapedUrl = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const regex = new RegExp(escapedUrl, 'gi')
-  const matches = answer.match(regex)
-  return matches ? matches.length : 0
+function isExcludedDomain(domain: string): boolean {
+  const normalizedDomain = domain.toLowerCase()
+  return EXCLUDED_DOMAINS.some(excluded =>
+    normalizedDomain === excluded || normalizedDomain.endsWith('.' + excluded)
+  )
 }

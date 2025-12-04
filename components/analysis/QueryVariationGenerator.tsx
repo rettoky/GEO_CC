@@ -9,17 +9,21 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Sparkles, RefreshCw } from 'lucide-react'
 import type { GeneratedVariation } from '@/types/queryVariations'
 
 interface QueryVariationGeneratorProps {
   baseQuery: string
   onVariationsGenerated: (variations: GeneratedVariation[]) => void
+  compact?: boolean
+  hasVariations?: boolean
 }
 
 export function QueryVariationGenerator({
   baseQuery,
   onVariationsGenerated,
+  compact = false,
+  hasVariations = false,
 }: QueryVariationGeneratorProps) {
   const [count, setCount] = useState<'small' | 'medium' | 'large'>('medium')
   const [productCategory, setProductCategory] = useState('')
@@ -34,9 +38,9 @@ export function QueryVariationGenerator({
   }
 
   const countOptions = [
-    { value: 'small' as const, label: '5-10개', desc: '빠름, 약 2-3분 소요' },
-    { value: 'medium' as const, label: '15-20개', desc: '권장, 약 5-7분 소요' },
-    { value: 'large' as const, label: '30개 이상', desc: '포괄적, 약 10-15분 소요' },
+    { value: 'small' as const, label: '5-10개', desc: '빠름' },
+    { value: 'medium' as const, label: '15-20개', desc: '권장' },
+    { value: 'large' as const, label: '30개+', desc: '포괄적' },
   ]
 
   const handleGenerate = async () => {
@@ -61,13 +65,107 @@ export function QueryVariationGenerator({
 
       const data = await response.json()
       onVariationsGenerated(data.variations)
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : '알 수 없는 오류'
+      setError(message)
     } finally {
       setIsGenerating(false)
     }
   }
 
+  // 컴팩트 모드 UI
+  if (compact) {
+    return (
+      <Card className="p-4 h-full">
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary" />
+            <h3 className="font-semibold">쿼리 변형 생성</h3>
+          </div>
+
+          {/* 기본 쿼리 */}
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1">기본 쿼리</label>
+            <div className="text-sm font-medium bg-muted/50 p-2 rounded truncate">{baseQuery}</div>
+          </div>
+
+          {/* 상품 정보 - 2컬럼 */}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">카테고리</label>
+              <Input
+                placeholder="예: 보험"
+                value={productCategory}
+                onChange={(e) => setProductCategory(e.target.value)}
+                className="h-8 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">상품명</label>
+              <Input
+                placeholder="예: 암보험"
+                value={productName}
+                onChange={(e) => setProductName(e.target.value)}
+                className="h-8 text-sm"
+              />
+            </div>
+          </div>
+
+          {/* 변형 개수 - 가로 버튼 */}
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-2">생성 개수</label>
+            <div className="flex gap-1">
+              {countOptions.map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => setCount(option.value)}
+                  className={`flex-1 text-center py-2 px-2 text-xs border rounded-md transition-colors ${
+                    count === option.value
+                      ? 'border-primary bg-primary/10 text-primary font-medium'
+                      : 'border-border hover:border-primary/50'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {error && (
+            <div className="text-xs text-red-600 bg-red-50 p-2 rounded">
+              {error}
+            </div>
+          )}
+
+          <Button
+            onClick={handleGenerate}
+            disabled={isGenerating}
+            className="w-full"
+            size="sm"
+          >
+            {isGenerating ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                생성 중...
+              </>
+            ) : hasVariations ? (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                다시 생성
+              </>
+            ) : (
+              <>
+                <Sparkles className="mr-2 h-4 w-4" />
+                {countMap[count]}개 생성
+              </>
+            )}
+          </Button>
+        </div>
+      </Card>
+    )
+  }
+
+  // 기본 모드 UI (변형 없을 때)
   return (
     <Card className="p-6">
       <div className="space-y-6">

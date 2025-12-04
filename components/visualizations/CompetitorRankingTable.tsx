@@ -31,8 +31,8 @@ export function CompetitorRankingTable({
 
   // 정렬
   const sortedData = [...rankingData].sort((a, b) => {
-    let aValue: any
-    let bValue: any
+    let aValue: string | number
+    let bValue: string | number
 
     switch (sortKey) {
       case 'rank':

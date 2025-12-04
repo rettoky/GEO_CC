@@ -35,6 +35,7 @@ export const LABELS = {
     QUERY_INPUT: '검색어 입력',
     DOMAIN_INPUT: '도메인 입력',
     BRAND_INPUT: '브랜드명 입력',
+    SET_QUERY: '쿼리 설정',
     START_ANALYSIS: '분석 시작',
     ANALYZING: '분석 중...',
     ANALYSIS_COMPLETE: '분석 완료',

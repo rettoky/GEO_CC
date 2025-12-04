@@ -42,7 +42,7 @@ export async function callOpenAI(query: string): Promise<LLMResult> {
         'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
+        model: 'gpt-4o-mini',
         input: query,
         tools: [{ type: 'web_search_preview' }],
       }),
@@ -53,6 +53,7 @@ export async function callOpenAI(query: string): Promise<LLMResult> {
     }
 
     const data: OpenAIResponse = await response.json()
+    console.log('[DEBUG OpenAI] Raw response:', JSON.stringify(data))
     const responseTime = Date.now() - startTime
 
     // output에서 텍스트와 annotations 추출
@@ -72,28 +73,47 @@ export async function callOpenAI(query: string): Promise<LLMResult> {
       }
     }
 
-    // annotations를 UnifiedCitation으로 변환
-    const citationMap = new Map<string, { annotation: OpenAIAnnotation; positions: number[] }>()
+    // annotations를 UnifiedCitation으로 변환 (방법론 문서 Section 2.2)
+    // 각 URL에 대한 모든 annotation을 수집하여 textSpans 생성
+    const citationMap = new Map<string, {
+      annotations: OpenAIAnnotation[]
+      textSpans: import('./types.ts').TextSpan[]
+    }>()
 
-    annotations.forEach((annotation, index) => {
+    annotations.forEach((annotation) => {
       if (annotation.type === 'url_citation') {
-        const existing = citationMap.get(annotation.url)
+        // URL 정규화 (쿼리 파라미터 제거)
+        const cleanUrl = annotation.url.split('?')[0]
+
+        const existing = citationMap.get(cleanUrl)
         if (existing) {
-          existing.positions.push(index + 1)
+          existing.annotations.push(annotation)
+          existing.textSpans.push({
+            start: annotation.start_index,
+            end: annotation.end_index,
+            text: answer.substring(annotation.start_index, annotation.end_index),
+          })
         } else {
-          citationMap.set(annotation.url, { annotation, positions: [index + 1] })
+          citationMap.set(cleanUrl, {
+            annotations: [annotation],
+            textSpans: [{
+              start: annotation.start_index,
+              end: annotation.end_index,
+              text: answer.substring(annotation.start_index, annotation.end_index),
+            }],
+          })
         }
       }
     })
 
     const citations: UnifiedCitation[] = Array.from(citationMap.values()).map(
-      ({ annotation, positions }, index) =>
-        normalizeOpenAICitation(annotation, index + 1, answer, positions)
+      ({ annotations: annots, textSpans }, index) =>
+        normalizeOpenAICitation(annots[0], index + 1, textSpans)
     )
 
     return {
       success: true,
-      model: 'gpt-4o',
+      model: 'gpt-4o-mini',
       answer,
       citations,
       responseTime,
@@ -103,7 +123,7 @@ export async function callOpenAI(query: string): Promise<LLMResult> {
     const responseTime = Date.now() - startTime
     return {
       success: false,
-      model: 'gpt-4o',
+      model: 'gpt-4o-mini',
       answer: '',
       citations: [],
       responseTime,
@@ -114,22 +134,16 @@ export async function callOpenAI(query: string): Promise<LLMResult> {
 }
 
 /**
- * OpenAI 인용을 UnifiedCitation으로 변환
+ * OpenAI 인용을 UnifiedCitation으로 변환 (방법론 문서 Section 2.2)
+ * 각 annotation의 실제 위치를 textSpans에 보존
  */
 function normalizeOpenAICitation(
   annotation: OpenAIAnnotation,
   position: number,
-  answer: string,
-  positions: number[]
+  textSpans: TextSpan[]
 ): UnifiedCitation {
   const domain = extractDomain(annotation.url)
   const cleanUrl = removeQueryParams(annotation.url)
-
-  const textSpans: TextSpan[] = positions.map(pos => ({
-    start: annotation.start_index,
-    end: annotation.end_index,
-    text: answer.substring(annotation.start_index, annotation.end_index),
-  }))
 
   return {
     id: crypto.randomUUID(),
@@ -141,7 +155,7 @@ function normalizeOpenAICitation(
     title: annotation.title || null,
     snippet: null,
     publishedDate: null,
-    mentionCount: positions.length,
+    mentionCount: textSpans.length,
     avgConfidence: null,
     confidenceScores: [],
     textSpans,

@@ -6,13 +6,32 @@ import { EmptyState } from '@/components/analysis/EmptyState'
 import { LoadingSkeleton } from '@/components/analysis/LoadingSkeleton'
 import { ErrorMessage } from '@/components/analysis/ErrorMessage'
 import { Button } from '@/components/ui/button'
+import { useToast } from '@/hooks/use-toast'
 
 /**
  * 분석 이력 페이지 (T057-T059)
  */
 export default function AnalysisHistoryPage() {
-  const { analyses, isLoading, isLoadingMore, hasMore, error, loadMore } =
+  const { analyses, isLoading, isLoadingMore, isDeleting, hasMore, error, loadMore, deleteAnalysis } =
     useInfiniteAnalyses(20)
+  const { toast } = useToast()
+
+  const handleDelete = async (id: string): Promise<boolean> => {
+    const success = await deleteAnalysis(id)
+    if (success) {
+      toast({
+        title: '삭제 완료',
+        description: '분석 결과가 삭제되었습니다.',
+      })
+    } else {
+      toast({
+        title: '삭제 실패',
+        description: '분석 결과를 삭제하는데 실패했습니다.',
+        variant: 'destructive',
+      })
+    }
+    return success
+  }
 
   if (isLoading) {
     return <LoadingSkeleton />
@@ -38,7 +57,12 @@ export default function AnalysisHistoryPage() {
       {/* 분석 목록 (T058) */}
       <div className="space-y-3">
         {analyses.map((analysis) => (
-          <AnalysisListItem key={analysis.id} analysis={analysis} />
+          <AnalysisListItem
+            key={analysis.id}
+            analysis={analysis}
+            onDelete={handleDelete}
+            isDeleting={isDeleting === analysis.id}
+          />
         ))}
       </div>
 

@@ -49,11 +49,12 @@ export async function isAllowedByRobots(url: string): Promise<RobotsCheckResult>
     }
 
     return { allowed: true, robotsTxt }
-  } catch (error: any) {
+  } catch (error: unknown) {
     // 에러 발생 시 관대하게 허용 (네트워크 문제 등)
+    const message = error instanceof Error ? error.message : 'Unknown error'
     return {
       allowed: true,
-      reason: `robots.txt check failed: ${error.message}`,
+      reason: `robots.txt check failed: ${message}`,
     }
   }
 }

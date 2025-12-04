@@ -40,7 +40,7 @@ export async function callPerplexity(query: string): Promise<LLMResult> {
         'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: 'sonar-pro',
+        model: 'sonar',
         messages: [
           {
             role: 'user',
@@ -56,6 +56,7 @@ export async function callPerplexity(query: string): Promise<LLMResult> {
     }
 
     const data: PerplexityResponse = await response.json()
+    console.log('[DEBUG Perplexity] Raw response:', JSON.stringify(data))
     const answer = data.choices[0]?.message?.content || ''
     const responseTime = Date.now() - startTime
 
@@ -74,7 +75,7 @@ export async function callPerplexity(query: string): Promise<LLMResult> {
 
     return {
       success: true,
-      model: 'sonar-pro',
+      model: 'sonar',
       answer,
       citations,
       responseTime,
@@ -84,7 +85,7 @@ export async function callPerplexity(query: string): Promise<LLMResult> {
     const responseTime = Date.now() - startTime
     return {
       success: false,
-      model: 'sonar-pro',
+      model: 'sonar',
       answer: '',
       citations: [],
       responseTime,
@@ -95,7 +96,8 @@ export async function callPerplexity(query: string): Promise<LLMResult> {
 }
 
 /**
- * Perplexity 인용을 UnifiedCitation으로 변환
+ * Perplexity 인용을 UnifiedCitation으로 변환 (방법론 문서 Section 2.1)
+ * position은 1부터 시작하며, 답변 텍스트의 [1], [2] 등의 마커와 대응
  */
 function normalizePerplexityCitation(
   result: PerplexitySearchResult,
@@ -104,7 +106,8 @@ function normalizePerplexityCitation(
 ): UnifiedCitation {
   const domain = extractDomain(result.url)
   const cleanUrl = removeQueryParams(result.url)
-  const mentionCount = countMentions(result.url, answer)
+  // [1], [2] 형태의 인용 마커 카운트 (방법론 문서 권장 방식)
+  const mentionCount = countCitationMarkers(position, answer)
 
   return {
     id: crypto.randomUUID(),
@@ -152,11 +155,12 @@ function removeQueryParams(url: string): string {
 }
 
 /**
- * 답변에서 URL 언급 횟수 카운트
+ * 답변에서 인용 번호 [1], [2] 등의 언급 횟수 카운트 (방법론 문서 Section 2.1)
+ * Perplexity는 답변 텍스트에서 [1] 설명... [2] 추가 설명... 형식으로 인용 표시
  */
-function countMentions(url: string, answer: string): number {
-  const escapedUrl = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const regex = new RegExp(escapedUrl, 'gi')
-  const matches = answer.match(regex)
+function countCitationMarkers(citationIndex: number, answer: string): number {
+  // [1], [2], ... 형식의 인용 마커 찾기
+  const pattern = new RegExp(`\\[${citationIndex}\\]`, 'g')
+  const matches = answer.match(pattern)
   return matches ? matches.length : 0
 }

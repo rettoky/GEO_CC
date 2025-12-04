@@ -27,9 +27,9 @@ interface PieChartViewProps {
 export function PieChartView({
   results,
   myDomain,
-  competitors,
+  competitors: _competitors,
 }: PieChartViewProps) {
-  const chartData = generatePieChartData(results, myDomain, competitors)
+  const chartData = generatePieChartData(results, myDomain)
 
   // Recharts용 데이터 변환
   const rechartsData = chartData.segments.map((segment) => ({
@@ -45,12 +45,25 @@ export function PieChartView({
     midAngle,
     innerRadius,
     outerRadius,
-    percentage,
-  }: any) => {
+    percent,
+  }: {
+    cx?: number
+    cy?: number
+    midAngle?: number
+    innerRadius?: number
+    outerRadius?: number
+    percent?: number
+  }) => {
+    if (cx === undefined || cy === undefined || midAngle === undefined ||
+        innerRadius === undefined || outerRadius === undefined) {
+      return null
+    }
+
     const RADIAN = Math.PI / 180
     const radius = innerRadius + (outerRadius - innerRadius) * 0.5
     const x = cx + radius * Math.cos(-midAngle * RADIAN)
     const y = cy + radius * Math.sin(-midAngle * RADIAN)
+    const percentage = (percent ?? 0) * 100
 
     if (percentage < 5) return null // 5% 미만은 레이블 숨김
 

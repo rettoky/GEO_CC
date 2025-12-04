@@ -13,9 +13,6 @@ import {
   AlertCircle,
   CheckCircle2,
   XCircle,
-  ArrowUp,
-  ArrowDown,
-  Minus,
 } from 'lucide-react'
 import type { ComprehensiveReport } from '@/lib/reports/report-generator'
 import { VisualizationDashboard } from '@/components/visualizations/VisualizationDashboard'

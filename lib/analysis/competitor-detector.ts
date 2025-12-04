@@ -3,7 +3,7 @@
  * LLM 검색 결과에서 경쟁사를 자동으로 감지
  */
 
-import type { AnalysisResults, LLMType } from '@/types'
+import type { AnalysisResults, UnifiedCitation } from '@/types'
 import type { CompetitorScore, DomainData, LLMAppearances } from '@/types/competitors'
 
 // 제외할 generic 도메인
@@ -141,7 +141,7 @@ export function extractLLMAppearances(
   for (const [llmName, result] of Object.entries(results)) {
     if (!result?.success || !result.citations) continue
 
-    const count = result.citations.filter((c) => c.domain === domain).length
+    const count = result.citations.filter((c: UnifiedCitation) => c.domain === domain).length
 
     if (count > 0) {
       const llmKey = llmName as 'perplexity' | 'chatgpt' | 'gemini' | 'claude'

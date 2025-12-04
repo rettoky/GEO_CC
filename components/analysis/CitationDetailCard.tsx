@@ -68,7 +68,7 @@ export function CitationDetailCard({ citation, targetDomain }: CitationDetailCar
 
         {citation.textSpans.length > 0 && (
           <div className="space-y-2">
-            <p className="text-sm font-medium">텍스트 위치 (OpenAI)</p>
+            <p className="text-sm font-medium">텍스트 위치</p>
             <div className="space-y-1">
               {citation.textSpans.map((span, index) => (
                 <div key={index} className="rounded bg-blue-50 p-2 text-sm">
