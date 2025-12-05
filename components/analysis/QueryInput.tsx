@@ -146,7 +146,7 @@ export function QueryInput({ onSubmit, isLoading, initialData }: QueryInputProps
     return input.split(',').map(s => s.trim()).filter(s => s.length > 0)
   }
 
-  // Gemini를 사용하여 브랜드 별칭 자동 생성
+  // Gemini를 사용하여 브랜드 별칭 자동 생성 (검색어 컨텍스트 포함)
   const generateBrandAliases = async () => {
     if (!brand.trim()) return
 
@@ -159,7 +159,8 @@ export function QueryInput({ onSubmit, isLoading, initialData }: QueryInputProps
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
         },
-        body: JSON.stringify({ brand: brand.trim() }),
+        // 검색어 컨텍스트를 함께 전달하여 관련 업종의 별칭만 생성
+        body: JSON.stringify({ brand: brand.trim(), query: query.trim() || undefined }),
       })
 
       const data = await response.json()

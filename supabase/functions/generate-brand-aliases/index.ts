@@ -13,6 +13,7 @@ const corsHeaders = {
 
 interface GenerateAliasesRequest {
   brand: string
+  query?: string  // 검색어 컨텍스트 (선택)
 }
 
 interface GenerateAliasesResponse {
@@ -34,13 +35,25 @@ Deno.serve(async (req) => {
     })
   }
 
+  // 디버그 정보 수집
+  const apiKey = Deno.env.get('GOOGLE_AI_API_KEY')
+  const debugInfo = {
+    GOOGLE_AI_API_KEY_exists: !!apiKey,
+    GOOGLE_AI_API_KEY_length: apiKey?.length || 0,
+    GOOGLE_AI_API_KEY_prefix: apiKey ? apiKey.substring(0, 8) + '...' : 'N/A',
+    timestamp: new Date().toISOString(),
+  }
+
+  console.log('[DEBUG] API Key Status:', JSON.stringify(debugInfo))
+
   try {
-    const { brand }: GenerateAliasesRequest = await req.json()
+    const { brand, query }: GenerateAliasesRequest = await req.json()
 
     if (!brand || brand.trim().length === 0) {
-      const errorResponse: GenerateAliasesResponse = {
+      const errorResponse = {
         success: false,
         error: '브랜드명을 입력해주세요',
+        _debug: debugInfo,
       }
       return new Response(JSON.stringify(errorResponse), {
         status: 400,
@@ -48,15 +61,34 @@ Deno.serve(async (req) => {
       })
     }
 
-    const apiKey = Deno.env.get('GOOGLE_AI_API_KEY')
     if (!apiKey) {
-      throw new Error('GOOGLE_AI_API_KEY not found')
+      const errorResponse = {
+        success: false,
+        error: 'GOOGLE_AI_API_KEY not found in environment',
+        _debug: debugInfo,
+      }
+      return new Response(JSON.stringify(errorResponse), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
     }
+
+    // 검색어 컨텍스트가 있으면 업종/분야 추론
+    const contextSection = query
+      ? `
+검색어 컨텍스트: "${query}"
+위 검색어를 기반으로 해당 브랜드가 어떤 업종/분야인지 추론하고, 그 분야에 해당하는 별칭만 생성하세요.
+예를 들어:
+- 검색어가 "암보험 추천"이고 브랜드가 "메리츠"라면 → 메리츠화재, 메리츠손해보험, Meritz Fire 등 보험 관련 별칭만 생성
+- 검색어가 "주식 투자"이고 브랜드가 "메리츠"라면 → 메리츠증권, Meritz Securities 등 증권 관련 별칭만 생성
+- 다른 업종의 별칭(메리츠금융, 메리츠캐피탈 등)은 제외`
+      : ''
 
     // Gemini 2.0 Flash 호출
     const prompt = `당신은 브랜드명 전문가입니다. 다음 브랜드명에 대해 AI 검색 엔진에서 감지할 수 있는 다양한 별칭(alias)을 생성해주세요.
 
 브랜드명: "${brand}"
+${contextSection}
 
 다음 유형의 별칭을 포함해주세요:
 1. 한글 정식 명칭
@@ -72,6 +104,7 @@ Deno.serve(async (req) => {
 - 너무 일반적인 단어는 제외 (예: "보험", "생명" 단독 사용 제외)
 - 최소 3개, 최대 10개의 별칭 생성
 - 중복 제거
+${query ? '- 검색어 컨텍스트와 관련 없는 업종의 별칭은 절대 포함하지 마세요' : ''}
 
 JSON 배열 형식으로만 응답해주세요. 다른 텍스트 없이 배열만 반환:
 ["별칭1", "별칭2", "별칭3", ...]`
@@ -141,9 +174,10 @@ JSON 배열 형식으로만 응답해주세요. 다른 텍스트 없이 배열�
       aliases = [brand]
     }
 
-    const successResponse: GenerateAliasesResponse = {
+    const successResponse = {
       success: true,
       aliases,
+      _debug: debugInfo,
     }
 
     return new Response(JSON.stringify(successResponse), {
@@ -153,9 +187,10 @@ JSON 배열 형식으로만 응답해주세요. 다른 텍스트 없이 배열�
   } catch (error) {
     console.error('Error generating aliases:', error)
 
-    const errorResponse: GenerateAliasesResponse = {
+    const errorResponse = {
       success: false,
       error: error instanceof Error ? error.message : 'Internal server error',
+      _debug: debugInfo,
     }
 
     return new Response(JSON.stringify(errorResponse), {
