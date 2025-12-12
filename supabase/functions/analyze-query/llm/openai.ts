@@ -68,17 +68,28 @@ export async function callOpenAI(query: string): Promise<LLMResult> {
     const responseTime = Date.now() - startTime
 
     // output에서 텍스트와 annotations 추출
+    // 다중 output_text 블록 시 인덱스 오프셋 적용 (방법론 문서 Section 2.2)
     let answer = ''
     const annotations: OpenAIAnnotation[] = []
+    let answerOffset = 0
 
     for (const output of data.output) {
       if (output.type === 'message' && output.content) {
         for (const content of output.content) {
           if (content.type === 'output_text') {
-            answer += content.text || ''
+            const text = content.text || ''
+            answer += text
             if (content.annotations) {
-              annotations.push(...content.annotations)
+              // 각 annotation의 인덱스에 현재 오프셋 적용
+              content.annotations.forEach(ann => {
+                annotations.push({
+                  ...ann,
+                  start_index: ann.start_index + answerOffset,
+                  end_index: ann.end_index + answerOffset,
+                })
+              })
             }
+            answerOffset += text.length
           }
         }
       }
