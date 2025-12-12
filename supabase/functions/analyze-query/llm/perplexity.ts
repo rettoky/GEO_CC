@@ -193,7 +193,8 @@ function countCitationMarkers(citationIndex: number, answer: string): number {
   // [1], [2], ... 형식의 인용 마커 찾기
   const pattern = new RegExp(`\\[${citationIndex}\\]`, 'g')
   const matches = answer.match(pattern)
-  return matches ? matches.length : 0
+  // API가 인용을 반환했으므로 최소 1회는 참조된 것으로 간주
+  return matches ? matches.length : 1
 }
 
 /**
