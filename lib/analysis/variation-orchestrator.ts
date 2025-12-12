@@ -94,7 +94,9 @@ export async function analyzeBatchVariations(
   variations: GeneratedVariation[],
   myDomain: string,
   myBrand: string,
-  onProgress?: ProgressCallback
+  onProgress?: ProgressCallback,
+  brandAliases?: string[],
+  competitors?: Array<{ name: string; aliases: string[] }>
 ) {
   const supabase = createClient()
   const totalQueries = variations.length + 1 // base + variations
@@ -174,7 +176,7 @@ export async function analyzeBatchVariations(
       message: `기본 쿼리 분석 중: "${baseQuery}"`,
     })
 
-    const baseResult = await analyzeQuery(supabaseUrl, supabaseAnonKey, baseQuery, myDomain, myBrand)
+    const baseResult = await analyzeQuery(supabaseUrl, supabaseAnonKey, baseQuery, myDomain, myBrand, brandAliases, competitors)
 
     if (baseResult.success) {
       allQueryResults.push({
@@ -224,7 +226,7 @@ export async function analyzeBatchVariations(
         message: `변형 쿼리 분석 중 (${i + 1}/${variations.length}): "${variation.query.substring(0, 30)}..."`,
       })
 
-      const result = await analyzeQuery(supabaseUrl, supabaseAnonKey, variation.query, myDomain, myBrand)
+      const result = await analyzeQuery(supabaseUrl, supabaseAnonKey, variation.query, myDomain, myBrand, brandAliases, competitors)
 
       if (result.success) {
         allQueryResults.push({
@@ -331,7 +333,9 @@ async function analyzeQuery(
   supabaseAnonKey: string,
   query: string,
   myDomain: string,
-  myBrand: string
+  myBrand: string,
+  brandAliases?: string[],
+  competitors?: Array<{ name: string; aliases: string[] }>
 ): Promise<{ success: true; data: { results: AnalysisResults; summary: AnalysisSummary } } | { success: false; error: string }> {
   try {
     const response = await fetch(`${supabaseUrl}/functions/v1/analyze-query`, {
@@ -342,9 +346,11 @@ async function analyzeQuery(
       },
       body: JSON.stringify({
         query,
-        domain: myDomain, // Edge Function은 'domain' 파라미터 사용
-        brand: myBrand,   // Edge Function은 'brand' 파라미터 사용
-        skipSave: true,   // 배치 분석에서는 별도 레코드 생성 안함
+        domain: myDomain,      // Edge Function은 'domain' 파라미터 사용
+        brand: myBrand,        // Edge Function은 'brand' 파라미터 사용
+        brandAliases,          // 브랜드 별칭 목록
+        competitors,           // 경쟁사 브랜드 목록 (name, aliases)
+        skipSave: true,        // 배치 분석에서는 별도 레코드 생성 안함
       }),
     })
 
@@ -353,6 +359,24 @@ async function analyzeQuery(
     }
 
     const data = await response.json()
+
+    // Edge Function이 success: false를 반환한 경우 처리
+    if (!data.success) {
+      console.error('[BatchAnalysis] Edge Function returned failure:', data.error)
+      return { success: false, error: data.error?.message || 'Edge Function returned failure' }
+    }
+
+    // data.data가 없는 경우 처리
+    if (!data.data || !data.data.results) {
+      console.error('[BatchAnalysis] Edge Function returned empty data:', data)
+      return { success: false, error: 'Edge Function returned empty data' }
+    }
+
+    // 모든 LLM이 실패한 경우 로그
+    const failedLLMs = data.data.summary?.failedLLMs || []
+    const successfulLLMs = data.data.summary?.successfulLLMs || []
+    console.log(`[BatchAnalysis] LLM results - Success: [${successfulLLMs.join(', ')}], Failed: [${failedLLMs.join(', ')}]`)
+
     return { success: true, data: { results: data.data.results, summary: data.data.summary } }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }

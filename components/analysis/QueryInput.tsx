@@ -10,8 +10,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { Badge } from '@/components/ui/badge'
 import { z } from 'zod'
-import { Search, Globe, Tag, ArrowRight, Sparkles, HelpCircle, Wand2, Loader2 } from 'lucide-react'
+import { Search, Globe, Tag, ArrowRight, Sparkles, HelpCircle, Wand2, Loader2, Users, X, Plus } from 'lucide-react'
 import { LABELS, PLACEHOLDERS } from '@/lib/constants/labels'
 
 // 도움말 툴팁 데이터
@@ -57,6 +58,16 @@ const HELP_CONTENT = {
     ],
     tip: '쉼표(,)로 구분하여 여러 별칭을 입력하세요',
   },
+  competitors: {
+    title: '경쟁사 브랜드란?',
+    description: 'AI 응답에서 비교 분석할 경쟁사 브랜드입니다. 동일 업종의 주요 경쟁사를 입력하면 브랜드 언급 점유율을 비교할 수 있습니다.',
+    examples: [
+      '삼성화재, 현대해상, DB손해보험',
+      'LG전자, 애플, 삼성전자',
+      '배달의민족, 요기요, 쿠팡이츠',
+    ],
+    tip: 'AI 자동 찾기로 경쟁사를 추천받을 수 있습니다',
+  },
 }
 
 // 도움말 툴팁 컴포넌트
@@ -101,6 +112,14 @@ function HelpTooltip({ content }: { content: typeof HELP_CONTENT.query }) {
 }
 
 /**
+ * 경쟁사 브랜드 타입
+ */
+export interface CompetitorBrand {
+  name: string
+  aliases: string[]
+}
+
+/**
  * 쿼리 입력 검증 스키마 (T034)
  */
 export const queryInputSchema = z.object({
@@ -108,6 +127,10 @@ export const queryInputSchema = z.object({
   domain: z.string().optional(),
   brand: z.string().optional(),
   brandAliases: z.array(z.string()).optional(),
+  competitors: z.array(z.object({
+    name: z.string(),
+    aliases: z.array(z.string()),
+  })).optional(),
 })
 
 export type QueryInputData = z.infer<typeof queryInputSchema>
@@ -126,9 +149,13 @@ export function QueryInput({ onSubmit, isLoading, initialData }: QueryInputProps
   const [domain, setDomain] = useState(initialData?.domain || '')
   const [brand, setBrand] = useState(initialData?.brand || '')
   const [brandAliasesInput, setBrandAliasesInput] = useState(initialData?.brandAliases?.join(', ') || '')
+  const [competitors, setCompetitors] = useState<CompetitorBrand[]>(initialData?.competitors || [])
+  const [newCompetitorInput, setNewCompetitorInput] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [isFocused, setIsFocused] = useState(false)
   const [isGeneratingAliases, setIsGeneratingAliases] = useState(false)
+  const [isFindingCompetitors, setIsFindingCompetitors] = useState(false)
+  const [isGeneratingAllCompetitorAliases, setIsGeneratingAllCompetitorAliases] = useState(false)
 
   // initialData가 변경될 때 (탭 이동 후 복귀 시) 상태 업데이트
   useEffect(() => {
@@ -137,6 +164,7 @@ export function QueryInput({ onSubmit, isLoading, initialData }: QueryInputProps
       setDomain(initialData.domain || '')
       setBrand(initialData.brand || '')
       setBrandAliasesInput(initialData.brandAliases?.join(', ') || '')
+      setCompetitors(initialData.competitors || [])
     }
   }, [initialData])
 
@@ -166,10 +194,8 @@ export function QueryInput({ onSubmit, isLoading, initialData }: QueryInputProps
       const data = await response.json()
 
       if (data.success && data.aliases) {
-        // 기존 별칭과 새로 생성된 별칭 병합 (중복 제거)
-        const existingAliases = parseBrandAliases(brandAliasesInput)
-        const allAliases = [...new Set([...existingAliases, ...data.aliases])]
-        setBrandAliasesInput(allAliases.join(', '))
+        // 브랜드명이 변경되면 기존 별칭을 대체, 그렇지 않으면 병합
+        setBrandAliasesInput(data.aliases.join(', '))
       } else {
         console.error('Failed to generate aliases:', data.error)
       }
@@ -180,6 +206,117 @@ export function QueryInput({ onSubmit, isLoading, initialData }: QueryInputProps
     }
   }
 
+  // AI를 사용하여 경쟁사 브랜드 자동 찾기
+  const findCompetitors = async () => {
+    if (!brand.trim() && !domain.trim()) return
+
+    setIsFindingCompetitors(true)
+    try {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const response = await fetch(`${supabaseUrl}/functions/v1/find-competitors`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({
+          brand: brand.trim() || undefined,
+          domain: domain.trim() || undefined,
+          query: query.trim() || undefined,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (data.success && data.competitors) {
+        // 기존 경쟁사와 병합 (중복 제거)
+        const existingNames = new Set(competitors.map(c => c.name.toLowerCase()))
+        const newCompetitors = data.competitors.filter(
+          (c: CompetitorBrand) => !existingNames.has(c.name.toLowerCase())
+        )
+        setCompetitors([...competitors, ...newCompetitors])
+      } else {
+        console.error('Failed to find competitors:', data.error)
+      }
+    } catch (error) {
+      console.error('Error finding competitors:', error)
+    } finally {
+      setIsFindingCompetitors(false)
+    }
+  }
+
+  // 경쟁사 추가
+  const addCompetitor = () => {
+    const name = newCompetitorInput.trim()
+    if (!name) return
+
+    // 중복 체크
+    if (competitors.some(c => c.name.toLowerCase() === name.toLowerCase())) {
+      return
+    }
+
+    setCompetitors([...competitors, { name, aliases: [name] }])
+    setNewCompetitorInput('')
+  }
+
+  // 경쟁사 삭제
+  const removeCompetitor = (name: string) => {
+    setCompetitors(competitors.filter(c => c.name !== name))
+  }
+
+  // 경쟁사 별칭 업데이트
+  const updateCompetitorAliases = (competitorName: string, aliasesInput: string) => {
+    const aliases = aliasesInput.split(',').map(s => s.trim()).filter(s => s.length > 0)
+    setCompetitors(competitors.map(c => {
+      if (c.name === competitorName) {
+        return { ...c, aliases: aliases.length > 0 ? aliases : [competitorName] }
+      }
+      return c
+    }))
+  }
+
+  // 모든 경쟁사 별칭 일괄 생성
+  const generateAllCompetitorAliases = async () => {
+    if (competitors.length === 0) return
+
+    setIsGeneratingAllCompetitorAliases(true)
+    try {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+
+      // 모든 경쟁사에 대해 병렬로 별칭 생성
+      const results = await Promise.allSettled(
+        competitors.map(async (competitor) => {
+          const response = await fetch(`${supabaseUrl}/functions/v1/generate-brand-aliases`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
+            },
+            body: JSON.stringify({ brand: competitor.name, query: query.trim() || undefined }),
+          })
+          const data = await response.json()
+          return { name: competitor.name, aliases: data.success ? data.aliases : null }
+        })
+      )
+
+      // 결과를 competitors 상태에 반영 (기존 별칭 대체)
+      setCompetitors(competitors.map(competitor => {
+        const result = results.find((r, i) =>
+          r.status === 'fulfilled' && competitors[i].name === competitor.name
+        )
+        if (result?.status === 'fulfilled' && result.value.aliases) {
+          // 기존 별칭을 대체 (병합하지 않음 - 필터링된 결과만 사용)
+          return { ...competitor, aliases: result.value.aliases }
+        }
+        return competitor
+      }))
+    } catch (error) {
+      console.error('Error generating all competitor aliases:', error)
+    } finally {
+      setIsGeneratingAllCompetitorAliases(false)
+    }
+  }
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setErrors({})
@@ -187,7 +324,13 @@ export function QueryInput({ onSubmit, isLoading, initialData }: QueryInputProps
     const brandAliases = parseBrandAliases(brandAliasesInput)
 
     // 유효성 검증 (T034)
-    const result = queryInputSchema.safeParse({ query, domain, brand, brandAliases })
+    const result = queryInputSchema.safeParse({
+      query,
+      domain,
+      brand,
+      brandAliases,
+      competitors: competitors.length > 0 ? competitors : undefined,
+    })
 
     if (!result.success) {
       const fieldErrors: Record<string, string> = {}
@@ -331,6 +474,132 @@ export function QueryInput({ onSubmit, isLoading, initialData }: QueryInputProps
                 <p className="text-xs text-muted-foreground ml-1">
                   한글, 영문, 줄임말 등 다양한 표기를 추가하면 더 정확한 분석이 가능합니다
                 </p>
+              </div>
+            )}
+
+            {/* 경쟁사 브랜드 입력 (브랜드 또는 도메인 입력 시 표시) */}
+            {(brand || domain) && (
+              <div className="space-y-3 border-t pt-6">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-semibold flex items-center gap-2 ml-1 text-muted-foreground">
+                    <Users className="h-4 w-4" />
+                    경쟁사 브랜드 (선택)
+                    <HelpTooltip content={HELP_CONTENT.competitors} />
+                  </label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={findCompetitors}
+                    disabled={isLoading || isFindingCompetitors || (!brand.trim() && !domain.trim())}
+                    className="h-8 text-xs gap-1.5 text-orange-600 border-orange-300 hover:bg-orange-50"
+                  >
+                    {isFindingCompetitors ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        찾는 중...
+                      </>
+                    ) : (
+                      <>
+                        <Wand2 className="h-3.5 w-3.5" />
+                        AI 자동 찾기
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                {/* 경쟁사 추가 입력 */}
+                <div className="flex gap-2">
+                  <Input
+                    type="text"
+                    placeholder="경쟁사 브랜드명 입력"
+                    value={newCompetitorInput}
+                    onChange={(e) => setNewCompetitorInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        addCompetitor()
+                      }
+                    }}
+                    disabled={isLoading || isFindingCompetitors}
+                    className="h-10"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addCompetitor}
+                    disabled={isLoading || isFindingCompetitors || !newCompetitorInput.trim()}
+                    className="h-10 px-3"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                {/* 경쟁사 목록 */}
+                {competitors.length > 0 && (
+                  <div className="space-y-2">
+                    {/* 일괄 별칭 생성 버튼 */}
+                    <div className="flex justify-end">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={generateAllCompetitorAliases}
+                        disabled={isLoading || isGeneratingAllCompetitorAliases || competitors.length === 0}
+                        className="h-8 text-xs gap-1.5 text-violet-600 border-violet-300 hover:bg-violet-50"
+                      >
+                        {isGeneratingAllCompetitorAliases ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            생성 중... ({competitors.length}개)
+                          </>
+                        ) : (
+                          <>
+                            <Wand2 className="h-3.5 w-3.5" />
+                            별칭 일괄 생성 ({competitors.length}개)
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                    {competitors.map((competitor) => (
+                      <div
+                        key={competitor.name}
+                        className="bg-gray-50 dark:bg-gray-900/30 rounded-lg p-3 space-y-2"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="secondary">{competitor.name}</Badge>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeCompetitor(competitor.name)}
+                            disabled={isLoading}
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <Input
+                          type="text"
+                          placeholder="별칭 (쉼표로 구분)"
+                          value={competitor.aliases.join(', ')}
+                          onChange={(e) => updateCompetitorAliases(competitor.name, e.target.value)}
+                          disabled={isLoading || isGeneratingAllCompetitorAliases}
+                          className="h-9 text-sm"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {competitors.length === 0 && (
+                  <p className="text-xs text-muted-foreground ml-1">
+                    AI 자동 찾기로 경쟁사를 추천받거나, 직접 추가할 수 있습니다
+                  </p>
+                )}
               </div>
             )}
 

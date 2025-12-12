@@ -44,7 +44,11 @@ Deno.serve(async (req) => {
   try {
     // 요청 파싱
     // skipSave: 배치 분석에서 호출 시 true - DB 저장 건너뜀
-    const { query, domain, brand, brandAliases, skipSave }: AnalyzeRequest & { skipSave?: boolean } = await req.json()
+    // competitors: 사용자가 입력한 경쟁사 브랜드 목록
+    const { query, domain, brand, brandAliases, competitors, skipSave }: AnalyzeRequest & {
+      competitors?: Array<{ name: string; aliases: string[] }>;
+      skipSave?: boolean
+    } = await req.json()
 
     // 입력 검증
     if (!query || query.trim().length === 0) {
@@ -93,7 +97,16 @@ Deno.serve(async (req) => {
     }
 
     // 4개 LLM 병렬 호출 (T028)
-    console.log('[DEBUG] Starting LLM calls for query:', query)
+    console.log('[DEBUG] Starting LLM calls for query:', query.substring(0, 100))
+
+    // 환경 변수 확인 (API 키 존재 여부만 확인)
+    console.log('[DEBUG] API keys configured:', {
+      perplexity: !!Deno.env.get('PERPLEXITY_API_KEY'),
+      openai: !!Deno.env.get('OPENAI_API_KEY'),
+      google: !!Deno.env.get('GOOGLE_AI_API_KEY'),
+      anthropic: !!Deno.env.get('ANTHROPIC_API_KEY'),
+    })
+
     const results = await Promise.allSettled([
       callPerplexity(query),
       callOpenAI(query),
@@ -101,11 +114,16 @@ Deno.serve(async (req) => {
       callClaude(query),
     ])
 
-    // 디버깅: 각 LLM 결과 로그
-    console.log('[DEBUG] Perplexity result:', JSON.stringify(results[0]))
-    console.log('[DEBUG] OpenAI result:', JSON.stringify(results[1]))
-    console.log('[DEBUG] Gemini result:', JSON.stringify(results[2]))
-    console.log('[DEBUG] Claude result:', JSON.stringify(results[3]))
+    // 디버깅: 각 LLM 결과 요약
+    const llmNames = ['Perplexity', 'OpenAI', 'Gemini', 'Claude']
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        const r = result.value
+        console.log(`[DEBUG] ${llmNames[index]}: success=${r.success}, citations=${r.citations?.length || 0}, error=${r.error || 'none'}, time=${r.responseTime}ms`)
+      } else {
+        console.log(`[DEBUG] ${llmNames[index]}: REJECTED - ${result.reason}`)
+      }
+    })
 
     // 결과 매핑 (T029: UnifiedCitation은 이미 각 LLM 함수에서 정규화됨)
     const analysisResults: AnalysisResults = {
@@ -115,8 +133,8 @@ Deno.serve(async (req) => {
       claude: results[3].status === 'fulfilled' ? results[3].value : null,
     }
 
-    // AnalysisSummary 생성 (T030) - 경쟁사 브랜드 동적 감지 포함
-    const summary = await generateSummary(analysisResults, query, domain, brand, brandAliases)
+    // AnalysisSummary 생성 (T030) - 사용자 입력 경쟁사 사용
+    const summary = await generateSummary(analysisResults, query, domain, brand, brandAliases, competitors)
 
     // Cross-Validation 계산 (방법론 문서 Section 4.2)
     const crossValidation = calculateCrossValidation(analysisResults, domain)
@@ -174,14 +192,15 @@ Deno.serve(async (req) => {
 
 /**
  * AnalysisSummary 생성 함수 (T030)
- * 경쟁사 브랜드를 Gemini로 동적 감지
+ * 사용자가 입력한 경쟁사 목록 사용 (없으면 자동 감지)
  */
 async function generateSummary(
   results: AnalysisResults,
   query: string,
   myDomain?: string,
   myBrand?: string,
-  brandAliases?: string[]
+  brandAliases?: string[],
+  competitors?: Array<{ name: string; aliases: string[] }>
 ): Promise<AnalysisSummary> {
   const llmResults: LLMResult[] = Object.values(results).filter(
     (r): r is LLMResult => r !== null
@@ -194,23 +213,63 @@ async function generateSummary(
   // 고유 도메인 수
   const uniqueDomains = new Set(allCitations.map((c) => c.domain)).size
 
-  // 타겟 도메인 인용 여부 및 횟수 (서브도메인 포함)
+  // 타겟 도메인 인용 여부 및 횟수 (서브도메인 + 별칭 매칭 포함)
   let myDomainCited = false
   let myDomainCitationCount = 0
 
-  if (myDomain) {
-    const normalizedMyDomain = myDomain.toLowerCase().replace(/^www\./, '')
-    myDomainCitationCount = allCitations.filter((c) => {
-      const citationDomain = c.domain.toLowerCase()
-      return citationDomain === normalizedMyDomain ||
-             citationDomain.endsWith('.' + normalizedMyDomain) ||
-             normalizedMyDomain.endsWith('.' + citationDomain)
-    }).length
-    myDomainCited = myDomainCitationCount > 0
+  // 인용 데이터를 source 정보와 함께 추출
+  const citationsWithSource: Array<{ domain: string; source: LLMType }> = []
+  const llmEntries: [keyof AnalysisResults, LLMType][] = [
+    ['perplexity', 'perplexity'],
+    ['chatgpt', 'chatgpt'],
+    ['gemini', 'gemini'],
+    ['claude', 'claude'],
+  ]
+  for (const [key, llmType] of llmEntries) {
+    const result = results[key]
+    if (result?.success && result.citations) {
+      result.citations.forEach(c => {
+        citationsWithSource.push({ domain: c.domain, source: llmType })
+      })
+    }
   }
 
-  // 브랜드 언급 분석 (별칭 포함) - 경쟁사 동적 감지
-  const brandMentionAnalysis = await analyzeBrandMentions(results, query, myBrand, brandAliases)
+  if (myDomain) {
+    // 1. 도메인 정확 매칭 (서브도메인 포함)
+    const exactMatches = countExactDomainMatches(citationsWithSource, myDomain)
+
+    // 2. 브랜드 별칭 기반 도메인 매칭
+    // 내 브랜드 별칭이 포함된 도메인도 집계 (예: meritz가 포함된 meritzfire.com)
+    const myBrandAliases: string[] = []
+    if (myBrand) {
+      myBrandAliases.push(myBrand)
+      if (brandAliases && brandAliases.length > 0) {
+        myBrandAliases.push(...brandAliases)
+      }
+    }
+
+    // 정확 매칭된 도메인은 제외하고 별칭 매칭
+    const normalizedMyDomain = myDomain.toLowerCase().replace(/^www\./, '')
+    const aliasMatches = myBrandAliases.length > 0
+      ? findAliasMatchingDomains(citationsWithSource, myBrandAliases, [normalizedMyDomain])
+      : { count: 0, domains: [], llms: [] }
+
+    // 합산 (중복 없이)
+    myDomainCitationCount = exactMatches.count + aliasMatches.count
+    myDomainCited = myDomainCitationCount > 0
+
+    // 디버그 로그
+    console.log('[DEBUG] Domain citation count:', {
+      domain: myDomain,
+      exactMatches: exactMatches.count,
+      aliasMatches: aliasMatches.count,
+      aliasMatchedDomains: aliasMatches.domains,
+      total: myDomainCitationCount
+    })
+  }
+
+  // 브랜드 언급 분석 (별칭 포함) - 사용자 입력 경쟁사 사용
+  const brandMentionAnalysis = await analyzeBrandMentions(results, query, myBrand, brandAliases, competitors)
 
   // 기존 호환성을 위한 브랜드 언급 여부 및 횟수
   const brandMentioned = brandMentionAnalysis.myBrand !== null && brandMentionAnalysis.myBrand.mentionCount > 0
@@ -268,15 +327,28 @@ async function generateSummary(
 /**
  * 브랜드 언급 분석 함수
  * 내 브랜드와 경쟁사 브랜드의 언급을 분석
- * 경쟁사 브랜드는 Gemini를 사용하여 동적으로 감지
+ * 경쟁사 브랜드는 사용자가 입력한 목록 사용 (없으면 자동 감지)
+ * 브랜드 언급 + 도메인 인용을 통합 집계
  */
 async function analyzeBrandMentions(
   results: AnalysisResults,
   query: string,
   myBrand?: string,
-  brandAliases?: string[]
+  brandAliases?: string[],
+  userCompetitors?: Array<{ name: string; aliases: string[] }>
 ): Promise<BrandMentionAnalysis> {
   const llmKeys: (keyof AnalysisResults)[] = ['perplexity', 'chatgpt', 'gemini', 'claude']
+
+  // 인용 데이터를 source 정보와 함께 추출
+  const citationsWithSource: Array<{ domain: string; source: LLMType }> = []
+  for (const llmKey of llmKeys) {
+    const result = results[llmKey]
+    if (result?.success && result.citations) {
+      result.citations.forEach(c => {
+        citationsWithSource.push({ domain: c.domain, source: llmKey as LLMType })
+      })
+    }
+  }
 
   // 내 브랜드 별칭 목록 생성
   const myBrandAliases: string[] = []
@@ -293,36 +365,60 @@ async function analyzeBrandMentions(
     myBrandMention = detectBrandMentions(results, llmKeys, myBrand || '', myBrandAliases)
   }
 
-  // LLM 응답 텍스트 합치기
-  const combinedAnswers = llmKeys
-    .map(key => results[key]?.answer || '')
-    .filter(answer => answer.length > 0)
-    .join('\n\n')
-
-  // 경쟁사 브랜드 동적 감지 (Gemini 사용)
+  // 경쟁사 브랜드 분석
   const competitors: BrandMentionDetail[] = []
 
-  if (combinedAnswers.length > 0) {
-    try {
-      const detectedBrands = await detectCompetitorBrandsWithGemini(query, combinedAnswers, myBrand)
-      console.log('[DEBUG] Detected competitor brands:', JSON.stringify(detectedBrands))
+  // 사용자가 입력한 경쟁사만 사용 (자동 감지 제거)
+  // 사용자가 경쟁사를 설정하지 않으면 경쟁사 분석을 수행하지 않음
+  if (!userCompetitors || userCompetitors.length === 0) {
+    console.log('[DEBUG] No user-provided competitors, skipping competitor analysis')
+    return {
+      myBrand: myBrandMention,
+      competitors: [],
+      totalBrandMentions: myBrandMention?.mentionCount || 0,
+    }
+  }
 
-      for (const brand of detectedBrands) {
-        // 내 브랜드는 제외
-        if (myBrandAliases.some(alias =>
-          brand.aliases.some(a => a.toLowerCase() === alias.toLowerCase())
-        )) {
-          continue
-        }
+  console.log('[DEBUG] Using user-provided competitors:', JSON.stringify(userCompetitors))
+  const brandsToAnalyze = userCompetitors
 
-        const mention = detectBrandMentions(results, llmKeys, brand.name, brand.aliases)
-        if (mention.mentionCount > 0) {
-          competitors.push(mention)
-        }
-      }
-    } catch (error) {
-      console.error('[ERROR] Failed to detect competitor brands with Gemini:', error)
-      // Gemini 실패 시 기본 감지 없이 진행
+  // 경쟁사 브랜드 언급 분석
+  for (const brand of brandsToAnalyze) {
+    // 내 브랜드는 제외
+    if (myBrandAliases.some(alias =>
+      brand.aliases.some(a => a.toLowerCase() === alias.toLowerCase())
+    )) {
+      continue
+    }
+
+    // 1. 텍스트 기반 브랜드 언급 집계
+    const textMention = detectBrandMentions(results, llmKeys, brand.name, brand.aliases)
+
+    // 2. 별칭 기반 도메인 인용 집계
+    const domainMatches = findAliasMatchingDomains(citationsWithSource, brand.aliases)
+
+    // 3. 통합 집계 (텍스트 언급 + 도메인 인용)
+    const totalMentionCount = textMention.mentionCount + domainMatches.count
+
+    if (totalMentionCount > 0) {
+      // LLM 합집합
+      const allLLMs = [...new Set([...textMention.mentionedInLLMs, ...domainMatches.llms])]
+
+      competitors.push({
+        brand: brand.name,
+        aliases: brand.aliases,
+        mentionCount: totalMentionCount,
+        mentionedInLLMs: allLLMs,
+        contexts: textMention.contexts,
+      })
+
+      console.log('[DEBUG] Competitor brand stats:', {
+        brand: brand.name,
+        textMentions: textMention.mentionCount,
+        domainCitations: domainMatches.count,
+        matchedDomains: domainMatches.domains,
+        total: totalMentionCount
+      })
     }
   }
 
@@ -336,113 +432,6 @@ async function analyzeBrandMentions(
     myBrand: myBrandMention,
     competitors,
     totalBrandMentions,
-  }
-}
-
-/**
- * Gemini를 사용하여 경쟁사 브랜드 감지 및 별칭 생성
- */
-interface DetectedBrand {
-  name: string
-  aliases: string[]
-}
-
-async function detectCompetitorBrandsWithGemini(
-  query: string,
-  combinedAnswers: string,
-  myBrand?: string
-): Promise<DetectedBrand[]> {
-  const apiKey = Deno.env.get('GOOGLE_AI_API_KEY')
-  if (!apiKey) {
-    console.warn('[WARN] GOOGLE_AI_API_KEY not found, skipping competitor detection')
-    return []
-  }
-
-  // 응답 텍스트가 너무 길면 잘라내기 (토큰 제한)
-  const truncatedAnswers = combinedAnswers.length > 8000
-    ? combinedAnswers.substring(0, 8000) + '...'
-    : combinedAnswers
-
-  const prompt = `당신은 브랜드 분석 전문가입니다. 다음 AI 검색 응답 텍스트에서 언급된 브랜드/회사/제품명을 모두 추출하고, 각 브랜드의 다양한 별칭을 생성해주세요.
-
-검색 쿼리: "${query}"
-${myBrand ? `분석 대상 브랜드 (제외): "${myBrand}"` : ''}
-
-AI 응답 텍스트:
-"""
-${truncatedAnswers}
-"""
-
-작업:
-1. 위 텍스트에서 언급된 모든 브랜드/회사/제품명을 추출하세요
-2. 각 브랜드에 대해 다양한 별칭을 생성하세요 (한글, 영문, 줄임말, 띄어쓰기 변형 등)
-3. ${myBrand ? `"${myBrand}"와 관련된 브랜드는 제외하세요` : ''}
-4. 너무 일반적인 단어(예: "보험", "생명", "화재" 단독)는 제외하세요
-
-JSON 형식으로만 응답하세요:
-[
-  {"name": "브랜드명", "aliases": ["별칭1", "별칭2", "별칭3"]},
-  ...
-]
-
-최대 15개의 브랜드만 반환하세요.`
-
-  try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [{ text: prompt }],
-            },
-          ],
-          generationConfig: {
-            temperature: 0.2,
-            maxOutputTokens: 2000,
-          },
-        }),
-      }
-    )
-
-    if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.status}`)
-    }
-
-    const data = await response.json()
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
-
-    // JSON 배열 추출
-    let cleanText = text.trim()
-    if (cleanText.startsWith('```json')) {
-      cleanText = cleanText.replace(/^```json\s*/, '').replace(/\s*```$/, '')
-    } else if (cleanText.startsWith('```')) {
-      cleanText = cleanText.replace(/^```\s*/, '').replace(/\s*```$/, '')
-    }
-
-    const brands: DetectedBrand[] = JSON.parse(cleanText)
-
-    // 유효성 검증
-    if (!Array.isArray(brands)) {
-      throw new Error('Invalid response format')
-    }
-
-    // 유효한 브랜드만 필터링
-    return brands
-      .filter(b => b.name && Array.isArray(b.aliases) && b.aliases.length > 0)
-      .map(b => ({
-        name: b.name,
-        aliases: [...new Set([b.name, ...b.aliases.filter(a => typeof a === 'string' && a.trim().length > 0)])],
-      }))
-      .slice(0, 15)
-
-  } catch (error) {
-    console.error('[ERROR] Gemini competitor detection failed:', error)
-    return []
   }
 }
 
@@ -540,6 +529,107 @@ function detectBrandMentions(
  */
 function escapeRegExp(string: string): string {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * 브랜드 별칭이 도메인에 포함된 경우 추가 집계
+ * 예: "메리츠" 별칭이 "meritz.com" 도메인에 매칭
+ * 한글 브랜드명을 영문으로 변환하여 도메인 매칭 시도
+ *
+ * 주의: 오탐 방지를 위해 다음 조건을 적용:
+ * - 최소 5자 이상의 고유 패턴만 사용
+ * - 일반적인 단어(life, bank, home 등)는 제외
+ */
+function findAliasMatchingDomains(
+  citations: Array<{ domain: string; source: LLMType }>,
+  aliases: string[],
+  excludeDomains: string[] = []
+): { count: number; domains: string[]; llms: LLMType[] } {
+  const matchedDomains = new Set<string>()
+  const matchedLLMs = new Set<LLMType>()
+
+  // 오탐을 유발하는 일반적인 단어 제외 목록
+  const commonWords = new Set([
+    'life', 'bank', 'home', 'shop', 'mall', 'plus', 'news', 'info',
+    'korea', 'korean', 'insurance', 'finance', 'asset', 'fire',
+    'direct', 'online', 'mobile', 'smart', 'care', 'health',
+    'save', 'money', 'loan', 'credit', 'card', 'point', 'pay',
+    'service', 'center', 'support', 'help', 'guide', 'blog',
+  ])
+
+  // 별칭에서 영문 패턴 추출 (한글 제외, 영문만)
+  const englishPatterns: string[] = []
+  for (const alias of aliases) {
+    // 영문만 추출 (최소 5자 이상으로 강화 - 오탐 방지)
+    const englishOnly = alias.toLowerCase().replace(/[^a-z0-9]/g, '')
+
+    // 5자 이상이고 일반적인 단어가 아닌 경우만 패턴으로 사용
+    if (englishOnly.length >= 5 && !commonWords.has(englishOnly)) {
+      englishPatterns.push(englishOnly)
+    }
+
+    // 원본 별칭도 소문자로 추가 (영문인 경우, 5자 이상)
+    const lowerAlias = alias.toLowerCase()
+    if (/^[a-z0-9]+$/.test(lowerAlias) && lowerAlias.length >= 5 && !commonWords.has(lowerAlias)) {
+      englishPatterns.push(lowerAlias)
+    }
+  }
+
+  // 중복 제거
+  const uniquePatterns = [...new Set(englishPatterns)]
+
+  console.log('[DEBUG] findAliasMatchingDomains patterns:', uniquePatterns)
+
+  for (const citation of citations) {
+    const domain = citation.domain.toLowerCase()
+
+    // 이미 매칭된 도메인이거나 제외 도메인이면 건너뛰기
+    if (matchedDomains.has(domain) || excludeDomains.includes(domain)) {
+      continue
+    }
+
+    // 도메인에 별칭 패턴이 포함된 경우
+    for (const pattern of uniquePatterns) {
+      if (domain.includes(pattern)) {
+        matchedDomains.add(domain)
+        matchedLLMs.add(citation.source)
+        console.log('[DEBUG] Domain matched:', { domain, pattern, source: citation.source })
+        break
+      }
+    }
+  }
+
+  return {
+    count: matchedDomains.size,
+    domains: Array.from(matchedDomains),
+    llms: Array.from(matchedLLMs)
+  }
+}
+
+/**
+ * 도메인 정확 매칭 집계 (서브도메인 포함)
+ */
+function countExactDomainMatches(
+  citations: Array<{ domain: string; source: LLMType }>,
+  targetDomain: string
+): { count: number; llms: LLMType[] } {
+  const normalizedTarget = targetDomain.toLowerCase().replace(/^www\./, '')
+  const matchedLLMs = new Set<LLMType>()
+  let count = 0
+
+  for (const citation of citations) {
+    const citationDomain = citation.domain.toLowerCase()
+
+    // 정확 매칭 또는 서브도메인 매칭
+    if (citationDomain === normalizedTarget ||
+        citationDomain.endsWith('.' + normalizedTarget) ||
+        normalizedTarget.endsWith('.' + citationDomain)) {
+      count++
+      matchedLLMs.add(citation.source)
+    }
+  }
+
+  return { count, llms: Array.from(matchedLLMs) }
 }
 
 /**

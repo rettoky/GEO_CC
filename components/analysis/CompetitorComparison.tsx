@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Trophy, Minus, TrendingUp, TrendingDown, Target, AlertTriangle, CheckCircle2, XCircle } from 'lucide-react'
+import { Trophy, Minus, TrendingUp, TrendingDown, Target, AlertTriangle, CheckCircle2, XCircle, Link2 } from 'lucide-react'
 import { Progress } from '@/components/ui/progress'
 import type { AnalysisResults, UnifiedCitation, CrossValidation, LLMType } from '@/types'
 
@@ -54,6 +54,11 @@ const GRADE_DESCRIPTIONS: Record<string, string> = {
  * 경쟁사 도메인 비교 분석 (강화된 버전)
  */
 export function CompetitorComparison({ results, myDomain, crossValidation, section = 'all' }: CompetitorComparisonProps) {
+  // 결과가 없으면 렌더링하지 않음
+  if (!results || Object.keys(results).length === 0) {
+    return null
+  }
+
   // 모든 도메인별 인용 수 집계
   const domainMap = new Map<string, {
     count: number
@@ -167,7 +172,6 @@ export function CompetitorComparison({ results, myDomain, crossValidation, secti
   const showMyDomain = section === 'all' || section === 'myDomain'
   const showTopCompetitors = section === 'all' || section === 'topCompetitors'
   const showRanking = section === 'all' || section === 'ranking'
-  const showRecommendations = section === 'all' || section === 'recommendations'
 
   if (domainStats.length === 0) {
     return (
@@ -283,20 +287,23 @@ export function CompetitorComparison({ results, myDomain, crossValidation, secti
         </Card>
       )}
 
-      {/* 상위 경쟁사 비교 */}
+      {/* 상위 인용 도메인 */}
       {showTopCompetitors && topCompetitors.length > 0 && (
         <Card>
-          <CardHeader>
+          <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2">
-              <Trophy className="h-5 w-5 text-yellow-500" />
-              상위 경쟁사 분석
+              <Link2 className="h-5 w-5 text-indigo-500" />
+              상위 인용 도메인
             </CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              LLM이 답변에서 자주 인용하는 권위 있는 도메인입니다. 백링크/PR 전략에 활용하세요.
+            </p>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {topCompetitors.map((competitor, index) => (
+              {topCompetitors.map((domain, index) => (
                 <div
-                  key={competitor.domain}
+                  key={domain.domain}
                   className="border rounded-lg p-4 bg-gradient-to-b from-gray-50 to-white"
                 >
                   <div className="flex items-center gap-2 mb-3">
@@ -305,10 +312,10 @@ export function CompetitorComparison({ results, myDomain, crossValidation, secti
                     </span>
                     <div>
                       <div className="font-mono text-sm font-semibold truncate max-w-[150px]">
-                        {competitor.domain}
+                        {domain.domain}
                       </div>
-                      <Badge className={GRADE_COLORS[competitor.grade || 'C']} variant="secondary">
-                        {competitor.grade}등급
+                      <Badge className={GRADE_COLORS[domain.grade || 'C']} variant="secondary">
+                        {domain.grade}등급
                       </Badge>
                     </div>
                   </div>
@@ -316,15 +323,15 @@ export function CompetitorComparison({ results, myDomain, crossValidation, secti
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">인용 횟수</span>
-                      <span className="font-semibold">{competitor.citationCount}회</span>
+                      <span className="font-semibold">{domain.citationCount}회</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">LLM 커버리지</span>
-                      <span className="font-semibold">{competitor.llmCount}/4</span>
+                      <span className="font-semibold">{domain.llmCount}/4</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">평균 순위</span>
-                      <span className="font-semibold">{competitor.avgPosition.toFixed(1)}위</span>
+                      <span className="font-semibold">{domain.avgPosition.toFixed(1)}위</span>
                     </div>
                   </div>
 
@@ -333,8 +340,8 @@ export function CompetitorComparison({ results, myDomain, crossValidation, secti
                     {(['perplexity', 'chatgpt', 'gemini', 'claude'] as LLMType[]).map(llm => (
                       <Badge
                         key={llm}
-                        variant={competitor.llms.includes(llm) ? 'default' : 'outline'}
-                        className={`text-xs ${competitor.llms.includes(llm) ? '' : 'opacity-30'}`}
+                        variant={domain.llms.includes(llm) ? 'default' : 'outline'}
+                        className={`text-xs ${domain.llms.includes(llm) ? '' : 'opacity-30'}`}
                       >
                         {LLM_NAMES[llm]?.charAt(0)}
                       </Badge>
@@ -346,14 +353,14 @@ export function CompetitorComparison({ results, myDomain, crossValidation, secti
                     <div className="mt-3 pt-3 border-t">
                       <div className="text-xs text-muted-foreground mb-1">vs 내 도메인</div>
                       <div className={`text-sm font-semibold ${
-                        competitor.citationCount > myDomainStats.citationCount
+                        domain.citationCount > myDomainStats.citationCount
                           ? 'text-red-600'
                           : 'text-green-600'
                       }`}>
-                        {competitor.citationCount > myDomainStats.citationCount
-                          ? `+${competitor.citationCount - myDomainStats.citationCount}회 더 인용됨`
-                          : competitor.citationCount < myDomainStats.citationCount
-                            ? `${myDomainStats.citationCount - competitor.citationCount}회 덜 인용됨`
+                        {domain.citationCount > myDomainStats.citationCount
+                          ? `+${domain.citationCount - myDomainStats.citationCount}회 더 인용됨`
+                          : domain.citationCount < myDomainStats.citationCount
+                            ? `${myDomainStats.citationCount - domain.citationCount}회 덜 인용됨`
                             : '동일한 인용 수'
                         }
                       </div>
@@ -455,55 +462,6 @@ export function CompetitorComparison({ results, myDomain, crossValidation, secti
         </CardContent>
       </Card>}
 
-      {/* GEO 최적화 권장사항 */}
-      {showRecommendations && (
-        <Card>
-          <CardHeader>
-            <CardTitle>GEO 최적화 권장사항</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* 즉시 개선 가능 */}
-              <div className="p-4 bg-green-50 rounded-lg">
-                <h4 className="font-semibold text-green-800 mb-3">즉시 적용 가능</h4>
-                <ul className="space-y-2 text-sm text-green-700">
-                  <li className="flex items-start gap-2">
-                    <CheckCircle2 className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                    <span>메타 설명에 주요 키워드 포함</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <CheckCircle2 className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                    <span>구조화된 FAQ 섹션 추가</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <CheckCircle2 className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                    <span>Schema.org 마크업 적용</span>
-                  </li>
-                </ul>
-              </div>
-
-              {/* 중장기 개선 */}
-              <div className="p-4 bg-blue-50 rounded-lg">
-                <h4 className="font-semibold text-blue-800 mb-3">중장기 전략</h4>
-                <ul className="space-y-2 text-sm text-blue-700">
-                  <li className="flex items-start gap-2">
-                    <Target className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                    <span>권위 있는 사이트로부터 백링크 확보</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Target className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                    <span>전문가 콘텐츠 및 연구 자료 발행</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Target className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                    <span>사용자 리뷰 및 평점 시스템 구축</span>
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   )
 }

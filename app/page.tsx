@@ -1,13 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAnalysis } from '@/hooks/useAnalysis'
 import { useAnalysisForm } from '@/contexts/AnalysisFormContext'
 import { QueryInput, type QueryInputData } from '@/components/analysis/QueryInput'
 import { ErrorMessage } from '@/components/analysis/ErrorMessage'
-import { LLMResultCard } from '@/components/analysis/LLMResultCard'
 import { AnalysisProgress } from '@/components/analysis/AnalysisProgress'
+import { AllQueryResultsView, type AllQueryResultsViewHandle } from '@/components/analysis/AllQueryResultsView'
 import { VisibilityDashboard } from '@/components/analysis/VisibilityDashboard'
 import { CompetitorComparison } from '@/components/analysis/CompetitorComparison'
 import { BrandMentionCard } from '@/components/analysis/BrandMentionCard'
@@ -54,6 +54,9 @@ export default function Home() {
   const [isBatchAnalyzing, setIsBatchAnalyzing] = useState(false)
   const [queryHistory, setQueryHistory] = useState<QueryResultHistory[]>([])
   const [showComparison, setShowComparison] = useState(false)
+
+  // AllQueryResultsView ref
+  const allQueryResultsRef = useRef<AllQueryResultsViewHandle>(null)
 
   const handleQueryInput = (inputData: QueryInputData) => {
     setQueryData(inputData)
@@ -132,7 +135,9 @@ export default function Home() {
         queryData.brand || '',
         (progress) => {
           setBatchProgress(progress)
-        }
+        },
+        queryData.brandAliases,
+        queryData.competitors
       )
 
       toast({
@@ -291,13 +296,21 @@ export default function Home() {
             results={data.data.results}
             myDomain={queryData?.domain}
             myBrand={queryData?.brand}
+            onDomainCitationClick={() => {
+              allQueryResultsRef.current?.setFilterAndScroll('myDomain')
+            }}
+            onBrandMentionClick={() => {
+              allQueryResultsRef.current?.setFilterAndScroll('brandMention')
+            }}
           />
 
-          {/* LLM 성능 비교 차트 */}
+          {/* 브랜드 노출 비교 차트 */}
           <LLMComparisonChart
             results={data.data.results}
             summary={data.data.summary}
             myDomain={queryData?.domain}
+            myBrand={queryData?.brand}
+            brandMentionAnalysis={data.data.summary.brandMentionAnalysis}
           />
 
           {/* 내 도메인 경쟁력 분석 (독립 행) */}
@@ -338,32 +351,18 @@ export default function Home() {
             section="recommendations"
           />
 
-          {/* LLM별 상세 결과 (접어둔 상태) */}
-          <div className="space-y-4">
-            <h2 className="text-xl font-semibold">LLM별 상세 결과</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <LLMResultCard
-                llmName="Perplexity"
-                result={data.data.results.perplexity}
-                targetDomain={queryData?.domain}
-              />
-              <LLMResultCard
-                llmName="ChatGPT"
-                result={data.data.results.chatgpt}
-                targetDomain={queryData?.domain}
-              />
-              <LLMResultCard
-                llmName="Gemini"
-                result={data.data.results.gemini}
-                targetDomain={queryData?.domain}
-              />
-              <LLMResultCard
-                llmName="Claude"
-                result={data.data.results.claude}
-                targetDomain={queryData?.domain}
-              />
-            </div>
-          </div>
+          {/* 전체 쿼리 분석 결과 */}
+          <AllQueryResultsView
+            ref={allQueryResultsRef}
+            allQueryResults={[{
+              query: queryData?.query || '',
+              queryType: 'base' as const,
+              results: data.data.results,
+              summary: data.data.summary,
+            }]}
+            myDomain={queryData?.domain}
+            myBrand={queryData?.brand}
+          />
 
           {/* 부분 실패 경고 */}
           {data.data.summary.failedLLMs.length > 0 && (

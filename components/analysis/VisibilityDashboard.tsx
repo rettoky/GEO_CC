@@ -14,11 +14,11 @@ import {
   Lightbulb,
   FileText,
   Link2,
-  MessageSquare,
   Search,
   Globe,
   Zap,
-  BookOpen
+  BookOpen,
+  ExternalLink,
 } from 'lucide-react'
 import type { AnalysisSummary, AnalysisResults } from '@/types'
 
@@ -27,6 +27,8 @@ interface VisibilityDashboardProps {
   results: AnalysisResults
   myDomain?: string
   myBrand?: string
+  onDomainCitationClick?: () => void
+  onBrandMentionClick?: () => void
 }
 
 const LLM_NAMES = {
@@ -44,12 +46,23 @@ export function VisibilityDashboard({
   results,
   myDomain,
   myBrand,
+  onDomainCitationClick,
+  onBrandMentionClick,
 }: VisibilityDashboardProps) {
-  // 내 도메인이 인용된 LLM 목록
+  // 결과가 없으면 렌더링하지 않음
+  if (!results || Object.keys(results).length === 0) {
+    return null
+  }
+
+  // 내 도메인이 인용된 LLM 목록 (부분 일치 - 서브도메인 포함)
   const myDomainLLMs = Object.entries(results)
     .filter(([, result]) => {
       if (!result || !result.success || !myDomain) return false
-      return result.citations.some((c: { domain: string }) => c.domain === myDomain.toLowerCase().replace(/^www\./, ''))
+      const normalizedMyDomain = myDomain.toLowerCase().replace(/^www\./, '')
+      return result.citations.some((c: { domain: string }) => {
+        const citationDomain = c.domain?.toLowerCase().replace(/^www\./, '')
+        return citationDomain && (citationDomain.includes(normalizedMyDomain) || normalizedMyDomain.includes(citationDomain))
+      })
     })
     .map(([llm]) => LLM_NAMES[llm as keyof typeof LLM_NAMES])
 
@@ -67,162 +80,240 @@ export function VisibilityDashboard({
   const visibilityGrade = getVisibilityGrade(visibilityRate)
   const GradeIcon = visibilityGrade.icon
 
-  // GEO 최적화 권장사항 생성
-  const generateGEORecommendations = () => {
+  // 노출되지 않은 LLM 목록 (향후 기능 확장용)
+  const _notExposedLLMs = Object.entries(LLM_NAMES)
+    .filter(([, name]) => !myDomainLLMs.includes(name))
+    .map(([key]) => key as keyof typeof LLM_NAMES)
+
+  // LLM별 GEO 최적화 권장사항 생성
+  const generateLLMSpecificRecommendations = () => {
     const recommendations: Array<{
+      llm: string
+      llmKey: string
       priority: 'high' | 'medium' | 'low'
-      category: string
-      title: string
-      description: string
-      icon: React.ElementType
-      actions: string[]
+      isExposed: boolean
+      strategies: Array<{
+        category: string
+        title: string
+        actions: string[]
+      }>
     }> = []
 
-    // 노출률 기반 권장사항
-    if (visibilityRate === 0) {
-      recommendations.push({
-        priority: 'high',
-        category: '긴급 조치',
-        title: 'LLM 검색 노출 확보 필요',
-        description: '현재 어떤 LLM에도 노출되지 않고 있습니다. 기본적인 GEO 최적화가 시급합니다.',
-        icon: AlertTriangle,
-        actions: [
-          '구조화된 데이터(Schema.org) 마크업 추가',
-          'FAQ 섹션 및 Q&A 콘텐츠 확대',
-          '신뢰할 수 있는 외부 사이트에서 백링크 확보',
-          '콘텐츠 E-E-A-T(경험, 전문성, 권위, 신뢰) 강화'
-        ]
-      })
-    } else if (visibilityRate < 50) {
-      recommendations.push({
-        priority: 'high',
-        category: '노출 확대',
-        title: '추가 LLM 노출 확보',
-        description: `현재 ${myDomainLLMs.length}개 LLM에만 노출되고 있습니다. 더 많은 LLM에서 인용되도록 개선이 필요합니다.`,
-        icon: Target,
-        actions: [
-          '각 LLM의 학습 데이터 소스 파악 및 타겟팅',
-          '권위 있는 뉴스/미디어 사이트에 기고',
-          '위키피디아 및 나무위키 등 참조 사이트 활용',
-          '학술 자료 및 연구 보고서 발행'
-        ]
-      })
-    }
-
-    // 브랜드 언급 관련 권장사항
-    if (summary.brandMentionCount === 0 && myBrand) {
-      recommendations.push({
-        priority: 'high',
-        category: '브랜드 인지도',
-        title: '브랜드명 노출 확보',
-        description: `"${myBrand}" 브랜드가 LLM 답변에 언급되지 않았습니다.`,
-        icon: MessageSquare,
-        actions: [
-          '브랜드 관련 보도자료 배포 확대',
-          '업계 전문 매체에 브랜드 스토리 기고',
-          '소셜 미디어 브랜드 언급 확대',
-          '인플루언서 마케팅 및 리뷰 확보'
-        ]
-      })
-    } else if (summary.brandMentionCount > 0 && summary.brandMentionCount < 3) {
-      recommendations.push({
-        priority: 'medium',
-        category: '브랜드 강화',
-        title: '브랜드 언급 빈도 증가',
-        description: `브랜드가 ${summary.brandMentionCount}회 언급되었지만, 더 자주 언급되도록 개선이 필요합니다.`,
-        icon: TrendingUp,
-        actions: [
-          '브랜드명을 포함한 고품질 콘텐츠 생산',
-          '경쟁사 대비 차별화된 브랜드 포지셔닝',
-          '고객 후기 및 사례 연구 콘텐츠 확대'
-        ]
-      })
-    }
-
-    // 인용 수 관련 권장사항
-    if (summary.myDomainCitationCount === 0 && myDomain) {
-      recommendations.push({
-        priority: 'high',
-        category: '콘텐츠 품질',
-        title: '인용 가능한 콘텐츠 생성',
-        description: '도메인이 인용 소스로 사용되지 않고 있습니다.',
-        icon: FileText,
-        actions: [
-          '통계, 연구 결과 등 원본 데이터 제공',
-          '업계 전문가 인터뷰 및 인사이트 콘텐츠',
-          '깊이 있는 가이드 및 튜토리얼 작성',
-          '정기적인 업계 리포트 발행'
-        ]
-      })
-    } else if (summary.myDomainCitationCount > 0 && summary.myDomainCitationCount < 3) {
-      recommendations.push({
-        priority: 'medium',
-        category: '콘텐츠 확장',
-        title: '인용 소스로서의 가치 강화',
-        description: `현재 ${summary.myDomainCitationCount}회 인용되었습니다. 더 많은 인용을 위해 콘텐츠 품질을 높이세요.`,
-        icon: BookOpen,
-        actions: [
-          '기존 콘텐츠 업데이트 및 최신화',
-          '데이터 시각화 및 인포그래픽 추가',
-          '전문가 코멘트 및 인용구 포함'
-        ]
-      })
-    }
-
-    // 기술적 SEO 권장사항 (항상 포함)
+    // ChatGPT 전략
+    const chatgptExposed = myDomainLLMs.includes('ChatGPT')
     recommendations.push({
-      priority: 'medium',
-      category: '기술적 최적화',
-      title: '구조화된 데이터 최적화',
-      description: 'LLM이 콘텐츠를 더 잘 이해할 수 있도록 기술적 최적화가 필요합니다.',
-      icon: Zap,
-      actions: [
-        'JSON-LD 형식의 Schema.org 마크업 적용',
-        'FAQ, HowTo, Article 스키마 우선 적용',
-        'Open Graph 및 메타 태그 최적화',
-        '사이트맵 및 robots.txt 최적화'
+      llm: 'ChatGPT',
+      llmKey: 'chatgpt',
+      priority: chatgptExposed ? 'low' : 'high',
+      isExposed: chatgptExposed,
+      strategies: [
+        {
+          category: 'Bing 검색 최적화 (핵심)',
+          title: 'ChatGPT는 Bing 인덱스에 크게 의존합니다',
+          actions: [
+            'Bing 웹마스터 도구에 사이트맵 제출 및 URL 직접 제출',
+            'Bing에서 타겟 키워드 검색 시 상위 노출 확보',
+            '참조 도메인(백링크) 32,000개 이상 확보 시 인용 급증',
+            'robots.txt에서 OAI-SearchBot, ChatGPT-User 허용 확인'
+          ]
+        },
+        {
+          category: '페이지 속도 최적화 (필수)',
+          title: 'FCP 0.4초 미만 달성 시 인용 3배 증가',
+          actions: [
+            'First Contentful Paint(FCP) 0.4초 미만 목표 설정',
+            'SSR(서버 사이드 렌더링) 필수 구현 - OpenAI 봇은 JS 렌더링 불가',
+            '클라이언트 사이드 렌더링 콘텐츠는 인덱싱 안됨',
+            '이미지 최적화 및 CDN 활용으로 로딩 속도 개선'
+          ]
+        },
+        {
+          category: '콘텐츠 구조 최적화',
+          title: '120-180단어 섹션 구조가 최적 인용률 달성',
+          actions: [
+            '각 섹션(H2~H3 사이)을 120-180단어로 구성 (인용 4.6개 달성)',
+            '첫 문단에 핵심 답변 배치 (BLUF: Bottom Line Up Front)',
+            '2,900단어 이상의 종합 콘텐츠 작성 (5.1개 vs 3.2개)',
+            '질문 형태의 H2/H3 제목 사용 - 소규모 사이트에서 7배 효과'
+          ]
+        },
+        {
+          category: '신뢰도 신호 강화',
+          title: '전문가 인용과 통계 데이터가 인용률 좌우',
+          actions: [
+            '전문가 인용 포함 시 인용 4.1개 vs 미포함 2.4개',
+            '통계 데이터 19개 이상 포함 시 인용 5.4개 vs 2.8개',
+            '3개월 이내 콘텐츠 업데이트 시 인용 6.0개 vs 3.6개',
+            'Reddit, Quora에서 브랜드 언급 확보 (신뢰 신호)'
+          ]
+        }
       ]
     })
 
-    // 콘텐츠 전략 권장사항
+    // Perplexity 전략
+    const perplexityExposed = myDomainLLMs.includes('Perplexity')
     recommendations.push({
-      priority: 'low',
-      category: '콘텐츠 전략',
-      title: 'LLM 친화적 콘텐츠 구조',
-      description: 'LLM이 콘텐츠를 쉽게 파싱하고 인용할 수 있는 구조로 개선하세요.',
-      icon: Globe,
-      actions: [
-        '명확한 헤딩 계층 구조(H1-H6) 사용',
-        '핵심 정보를 문단 초반에 배치',
-        '불릿 포인트와 번호 목록 활용',
-        '질문-답변 형식의 콘텐츠 구성'
+      llm: 'Perplexity',
+      llmKey: 'perplexity',
+      priority: perplexityExposed ? 'low' : 'high',
+      isExposed: perplexityExposed,
+      strategies: [
+        {
+          category: '콘텐츠 신선도 (최우선)',
+          title: 'Perplexity는 2-3일 주기로 콘텐츠 감쇠 시작',
+          actions: [
+            '2-3일 주기로 콘텐츠 갱신 일정 수립',
+            '"최종 업데이트: YYYY년 MM월 DD일" 형식으로 날짜 명시',
+            'dateModified 메타태그 정확히 업데이트',
+            '상시 콘텐츠(evergreen)도 정기적 갱신 필수'
+          ]
+        },
+        {
+          category: '답변 우선(Answer-First) 구조',
+          title: '첫 80토큰(40-60단어) 내 직접 답변 배치',
+          actions: [
+            'H1 직후 40-60단어로 핵심 결론 먼저 제시',
+            '질문 형태의 H2/H3 제목에 id 속성 추가 (딥링킹용)',
+            '비교표와 데이터 테이블 적극 활용 (인용 32%+)',
+            'Flesch 가독성 점수 55 이상 유지 (짧은 문장, 명확한 표현)'
+          ]
+        },
+        {
+          category: '학술적/객관적 톤',
+          title: 'Perplexity는 학술/연구 도구 성격으로 객관적 콘텐츠 선호',
+          actions: [
+            '마케팅 문구, 홍보성 표현 최소화 (감점 요인)',
+            '사실/수치 위주의 객관적 서술 (금융감독원, 통계청 등 인용)',
+            '원본 연구/데이터 포함 시 가중치 상승',
+            '종합 가이드는 10,000단어 이상 작성 (토픽 클러스터 형태)'
+          ]
+        },
+        {
+          category: '권위 도메인 연결',
+          title: 'Perplexity가 신뢰하는 시드 사이트에서 언급 확보',
+          actions: [
+            'Reddit 서브레딧에서 전문적 답변 제공 (전체 인용의 6.6%)',
+            'Wikipedia, GitHub, Stack Overflow 등 권위 사이트 언급',
+            'Crunchbase, LinkedIn 회사 페이지 최적화',
+            'robots.txt에서 PerplexityBot 허용 확인'
+          ]
+        }
       ]
     })
 
-    // 링크 빌딩 권장사항
-    if (visibilityRate < 75) {
-      recommendations.push({
-        priority: 'medium',
-        category: '권위도 구축',
-        title: '외부 링크 및 인용 확보',
-        description: '신뢰할 수 있는 외부 소스에서의 링크와 인용을 늘려 도메인 권위를 높이세요.',
-        icon: Link2,
-        actions: [
-          '업계 권위 사이트에 게스트 포스팅',
-          '디렉토리 및 리스팅 사이트 등록',
-          'HARO 등 미디어 기회 활용',
-          '파트너십 및 협업 콘텐츠 제작'
-        ]
-      })
-    }
+    // Gemini 전략
+    const geminiExposed = myDomainLLMs.includes('Gemini')
+    recommendations.push({
+      llm: 'Gemini',
+      llmKey: 'gemini',
+      priority: geminiExposed ? 'low' : 'high',
+      isExposed: geminiExposed,
+      strategies: [
+        {
+          category: 'Google 검색 순위 최적화 (핵심)',
+          title: 'AI Overview 인용의 74%가 SERP Top 10에서 발생',
+          actions: [
+            '#1 랭킹 페이지 인용 확률 33.07% (Top 10 평균의 2배)',
+            'Google Search Console에서 타겟 키워드 순위 모니터링',
+            'Core Web Vitals 준수 (LCP < 2.5s, FID < 100ms, CLS < 0.1)',
+            '기존 SEO 최적화가 Gemini 노출의 전제조건'
+          ]
+        },
+        {
+          category: 'Google 머천트 센터 연동',
+          title: '상업적 쿼리에서 GMC 데이터 최우선 반영',
+          actions: [
+            'GMC 피드 오류 0건 유지 및 GTIN(바코드) 정확히 입력',
+            'structured_title 속성으로 AI 친화적 제목 제공',
+            '가격/재고 실시간 동기화 및 고화질 다각도 이미지',
+            '배송 정보와 반품 정책 명확히 명시'
+          ]
+        },
+        {
+          category: '멀티모달 콘텐츠 최적화',
+          title: 'Gemini는 텍스트+이미지+비디오 동시 이해',
+          actions: [
+            '이미지 파일명: brand-model-feature.jpg 형식으로 명명',
+            'Alt 텍스트에 브랜드명, 제품명, 주요 특징 상세 기술',
+            'YouTube에 제품 시연 영상 업로드 후 웹페이지에 임베드',
+            'VideoObject 스키마 마크업 적용'
+          ]
+        },
+        {
+          category: 'Knowledge Panel 확보',
+          title: '브랜드 Knowledge Panel이 Gemini 신뢰도에 직접 영향',
+          actions: [
+            'Wikidata에 브랜드를 구조화된 엔티티로 등록',
+            'Google 마이 비즈니스 프로필 최적화 및 정기 게시물',
+            'Organization 스키마에 sameAs 속성으로 공식 SNS/위키 연결',
+            '언론 보도 확보 및 정기 보도자료 배포'
+          ]
+        }
+      ]
+    })
 
+    // Claude 전략
+    const claudeExposed = myDomainLLMs.includes('Claude')
+    recommendations.push({
+      llm: 'Claude',
+      llmKey: 'claude',
+      priority: claudeExposed ? 'low' : 'high',
+      isExposed: claudeExposed,
+      strategies: [
+        {
+          category: 'Brave Search 최적화 (핵심)',
+          title: 'Claude 인용의 86.7%가 Brave 검색 결과와 중복',
+          actions: [
+            'Brave Search에서 직접 검색하여 현재 순위 확인',
+            '콘텐츠 독창성 중시 - AI 재가공 콘텐츠 지양',
+            '팝업, 인터스티셜 광고 최소화 (Brave가 선호하는 클린 구조)',
+            'robots.txt에서 Claude-SearchBot 허용 필수'
+          ]
+        },
+        {
+          category: '간결하고 밀도 높은 콘텐츠',
+          title: 'Claude 최적 길이는 650-1,050단어 (타 LLM 대비 짧음)',
+          actions: [
+            '불필요한 서론/결론 최소화, 핵심 정보 위주 서술',
+            '핵심 문장을 25단어 이내로 구성 (Claude 스니펫 추출 규칙)',
+            '"암보험 민원의 47%는 보장 범위 오해에서 발생" 형태의 간결한 팩트',
+            '독립적으로 이해 가능한 문장 작성 (맥락 없이도 의미 전달)'
+          ]
+        },
+        {
+          category: '권위 신호 강화',
+          title: 'Claude는 도메인 권위와 평판에 높은 가중치 부여',
+          actions: [
+            '저자 자격증, 경력 명시 (손해사정인, AFPK 등)',
+            '금융감독원, 보험연구원 등 공신력 있는 출처 인용',
+            'YMYL 콘텐츠는 최고 수준 E-E-A-T 필수 (Constitutional AI)',
+            '이해충돌 공개 및 투명한 정보 제공'
+          ]
+        },
+        {
+          category: '질문-답변 형식 구조',
+          title: 'Claude는 질문에 직접 답하는 구조를 선호',
+          actions: [
+            'H2/H3에 질문 형태 제목 사용 ("암보험 진단금 적정 금액은?")',
+            '질문 바로 아래 1-2문장으로 직접적인 답변 배치',
+            'FAQPage 스키마 마크업 적용',
+            '주장-근거 쌍 구조로 핵심 데이터 바로 뒤에 출처 배치'
+          ]
+        }
+      ]
+    })
+
+    // 노출되지 않은 LLM을 우선순위 높게 정렬
     return recommendations.sort((a, b) => {
+      if (a.isExposed !== b.isExposed) {
+        return a.isExposed ? 1 : -1
+      }
       const priorityOrder = { high: 0, medium: 1, low: 2 }
       return priorityOrder[a.priority] - priorityOrder[b.priority]
     })
   }
 
-  const geoRecommendations = generateGEORecommendations()
+  const llmRecommendations = generateLLMSpecificRecommendations()
 
   const getPriorityBadge = (priority: 'high' | 'medium' | 'low') => {
     const styles = {
@@ -280,8 +371,17 @@ export function VisibilityDashboard({
                   </div>
                 </div>
 
-                {/* 도메인 인용 수 */}
-                <div className="group text-center p-6 rounded-2xl bg-card border border-border shadow-sm hover:shadow-md transition-all duration-300 hover:border-blue-200 opacity-0 animate-fade-in-scale" style={{ animationDelay: '0.2s' }}>
+                {/* 도메인 인용 수 - 클릭 시 전체 쿼리 분석결과로 이동 */}
+                <button
+                  onClick={() => summary.myDomainCitationCount > 0 && onDomainCitationClick?.()}
+                  disabled={summary.myDomainCitationCount === 0}
+                  className={`group text-center p-6 rounded-2xl bg-card border shadow-sm transition-all duration-300 opacity-0 animate-fade-in-scale w-full ${
+                    summary.myDomainCitationCount > 0
+                      ? 'cursor-pointer hover:shadow-md hover:border-blue-300 border-border'
+                      : 'cursor-default border-border opacity-70'
+                  }`}
+                  style={{ animationDelay: '0.2s' }}
+                >
                   <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-full w-16 h-16 mx-auto flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
                     <Target className="h-8 w-8 text-blue-600 dark:text-blue-400" />
                   </div>
@@ -296,10 +396,25 @@ export function VisibilityDashboard({
                       {myDomain}
                     </div>
                   )}
-                </div>
+                  {summary.myDomainCitationCount > 0 && (
+                    <div className="mt-3 flex items-center justify-center gap-1 text-xs text-blue-600 dark:text-blue-400">
+                      <ExternalLink className="h-3 w-3" />
+                      <span>클릭하여 상세 보기</span>
+                    </div>
+                  )}
+                </button>
 
-                {/* 브랜드 언급 수 */}
-                <div className="group text-center p-6 rounded-2xl bg-card border border-border shadow-sm hover:shadow-md transition-all duration-300 hover:border-purple-200 opacity-0 animate-fade-in-scale" style={{ animationDelay: '0.3s' }}>
+                {/* 브랜드 언급 수 - 클릭 시 전체 쿼리 분석결과로 이동 */}
+                <button
+                  onClick={() => summary.brandMentionCount > 0 && onBrandMentionClick?.()}
+                  disabled={summary.brandMentionCount === 0}
+                  className={`group text-center p-6 rounded-2xl bg-card border shadow-sm transition-all duration-300 opacity-0 animate-fade-in-scale w-full ${
+                    summary.brandMentionCount > 0
+                      ? 'cursor-pointer hover:shadow-md hover:border-purple-300 border-border'
+                      : 'cursor-default border-border opacity-70'
+                  }`}
+                  style={{ animationDelay: '0.3s' }}
+                >
                   <div className="mb-4 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-full w-16 h-16 mx-auto flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
                     <TrendingUp className="h-8 w-8 text-purple-600 dark:text-purple-400" />
                   </div>
@@ -314,7 +429,13 @@ export function VisibilityDashboard({
                       &quot;{myBrand}&quot;
                     </div>
                   )}
-                </div>
+                  {summary.brandMentionCount > 0 && (
+                    <div className="mt-3 flex items-center justify-center gap-1 text-xs text-purple-600 dark:text-purple-400">
+                      <ExternalLink className="h-3 w-3" />
+                      <span>클릭하여 상세 보기</span>
+                    </div>
+                  )}
+                </button>
               </div>
 
               {/* LLM별 노출 상세 */}
@@ -324,8 +445,13 @@ export function VisibilityDashboard({
                   {Object.entries(LLM_NAMES).map(([key, name]) => {
                     const isVisible = myDomainLLMs.includes(name)
                     const result = results[key as keyof AnalysisResults]
+                    const normalizedMyDomain = myDomain?.toLowerCase().replace(/^www\./, '')
                     const citationCount = result?.citations.filter(
-                      (c) => myDomain && c.domain === myDomain.toLowerCase().replace(/^www\./, '')
+                      (c) => {
+                        if (!myDomain) return false
+                        const citationDomain = c.domain?.toLowerCase().replace(/^www\./, '')
+                        return citationDomain && (citationDomain.includes(normalizedMyDomain!) || normalizedMyDomain!.includes(citationDomain))
+                      }
                     ).length || 0
 
                     return (
@@ -425,58 +551,123 @@ export function VisibilityDashboard({
                 </div>
               </div>
 
-              <div className="space-y-4">
-                {geoRecommendations.map((rec, index) => {
-                  const Icon = rec.icon
-                  return (
-                    <div
-                      key={index}
-                      className="p-5 rounded-xl border border-border bg-card hover:shadow-md transition-all duration-200"
+              {/* LLM별 권장사항 */}
+              <Tabs defaultValue={llmRecommendations[0]?.llmKey || 'chatgpt'} className="w-full">
+                <TabsList className="grid w-full grid-cols-4 mb-4">
+                  {llmRecommendations.map((rec) => (
+                    <TabsTrigger
+                      key={rec.llmKey}
+                      value={rec.llmKey}
+                      className="flex items-center gap-1.5 text-xs sm:text-sm"
                     >
-                      <div className="flex items-start gap-4">
-                        <div className={`p-3 rounded-xl ${
-                          rec.priority === 'high'
-                            ? 'bg-red-50 dark:bg-red-900/20'
-                            : rec.priority === 'medium'
-                            ? 'bg-yellow-50 dark:bg-yellow-900/20'
-                            : 'bg-blue-50 dark:bg-blue-900/20'
-                        }`}>
-                          <Icon className={`h-6 w-6 ${
-                            rec.priority === 'high'
-                              ? 'text-red-600 dark:text-red-400'
-                              : rec.priority === 'medium'
-                              ? 'text-yellow-600 dark:text-yellow-400'
-                              : 'text-blue-600 dark:text-blue-400'
-                          }`} />
+                      {rec.isExposed ? (
+                        <CheckCircle2 className="h-3 w-3 text-green-600" />
+                      ) : (
+                        <AlertTriangle className="h-3 w-3 text-amber-500" />
+                      )}
+                      <span>{rec.llm}</span>
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+
+                {llmRecommendations.map((rec) => (
+                  <TabsContent key={rec.llmKey} value={rec.llmKey} className="space-y-4">
+                    {/* LLM 상태 배너 */}
+                    <div className={`p-4 rounded-xl border ${
+                      rec.isExposed
+                        ? 'bg-green-50 border-green-200 dark:bg-green-900/10 dark:border-green-800'
+                        : 'bg-amber-50 border-amber-200 dark:bg-amber-900/10 dark:border-amber-800'
+                    }`}>
+                      <div className="flex items-center gap-3">
+                        {rec.isExposed ? (
+                          <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
+                        ) : (
+                          <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                        )}
+                        <div>
+                          <p className={`font-semibold ${
+                            rec.isExposed
+                              ? 'text-green-800 dark:text-green-300'
+                              : 'text-amber-800 dark:text-amber-300'
+                          }`}>
+                            {rec.isExposed
+                              ? `${rec.llm}에서 이미 노출되고 있습니다!`
+                              : `${rec.llm}에서 아직 노출되지 않고 있습니다`}
+                          </p>
+                          <p className={`text-sm ${
+                            rec.isExposed
+                              ? 'text-green-700 dark:text-green-400'
+                              : 'text-amber-700 dark:text-amber-400'
+                          }`}>
+                            {rec.isExposed
+                              ? '아래 전략을 통해 노출 순위를 더욱 높일 수 있습니다.'
+                              : '아래 전략을 우선적으로 실행하여 노출을 확보하세요.'}
+                          </p>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-2 flex-wrap">
-                            <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded">
-                              {rec.category}
-                            </span>
-                            {getPriorityBadge(rec.priority)}
-                          </div>
-                          <h4 className="font-semibold text-foreground mb-2">{rec.title}</h4>
-                          <p className="text-sm text-muted-foreground mb-4">{rec.description}</p>
-                          <div className="bg-muted/50 rounded-lg p-4">
-                            <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-                              실행 방안
-                            </h5>
-                            <ul className="space-y-2">
-                              {rec.actions.map((action, actionIndex) => (
-                                <li key={actionIndex} className="flex items-start gap-2 text-sm">
-                                  <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                                  <span>{action}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        </div>
+                        {getPriorityBadge(rec.priority)}
                       </div>
                     </div>
-                  )
-                })}
-              </div>
+
+                    {/* 전략 카드들 */}
+                    <div className="space-y-4">
+                      {rec.strategies.map((strategy, strategyIndex) => (
+                        <div
+                          key={strategyIndex}
+                          className="p-5 rounded-xl border border-border bg-card hover:shadow-md transition-all duration-200"
+                        >
+                          <div className="flex items-start gap-4">
+                            <div className={`p-3 rounded-xl ${
+                              strategyIndex === 0
+                                ? 'bg-primary/10'
+                                : 'bg-muted'
+                            }`}>
+                              {strategyIndex === 0 ? (
+                                <Zap className={`h-6 w-6 text-primary`} />
+                              ) : strategyIndex === 1 ? (
+                                <Globe className="h-6 w-6 text-muted-foreground" />
+                              ) : strategyIndex === 2 ? (
+                                <FileText className="h-6 w-6 text-muted-foreground" />
+                              ) : (
+                                <Link2 className="h-6 w-6 text-muted-foreground" />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                <span className={`text-xs font-medium px-2 py-0.5 rounded ${
+                                  strategyIndex === 0
+                                    ? 'bg-primary/10 text-primary'
+                                    : 'bg-muted text-muted-foreground'
+                                }`}>
+                                  {strategy.category}
+                                </span>
+                                {strategyIndex === 0 && (
+                                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                                    최우선
+                                  </span>
+                                )}
+                              </div>
+                              <h4 className="font-semibold text-foreground mb-3">{strategy.title}</h4>
+                              <div className="bg-muted/50 rounded-lg p-4">
+                                <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+                                  실행 방안
+                                </h5>
+                                <ul className="space-y-2">
+                                  {strategy.actions.map((action, actionIndex) => (
+                                    <li key={actionIndex} className="flex items-start gap-2 text-sm">
+                                      <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                                      <span>{action}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </TabsContent>
+                ))}
+              </Tabs>
 
               {/* 추가 리소스 */}
               <div className="mt-6 p-5 rounded-xl bg-muted/30 border border-border">

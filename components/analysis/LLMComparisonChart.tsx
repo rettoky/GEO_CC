@@ -10,32 +10,40 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  Radar,
+  PieChart,
+  Pie,
   Cell,
 } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { BarChart3, Target, Clock } from 'lucide-react'
-import type { AnalysisResults, AnalysisSummary, UnifiedCitation } from '@/types'
+import { Badge } from '@/components/ui/badge'
+import { BarChart3, PieChart as PieChartIcon, Building2 } from 'lucide-react'
+import type { AnalysisResults, AnalysisSummary, BrandMentionAnalysis, LLMType } from '@/types'
 
-interface LLMComparisonChartProps {
+interface BrandComparisonChartProps {
   results: AnalysisResults
   summary: AnalysisSummary
   myDomain?: string
+  myBrand?: string
+  brandMentionAnalysis?: BrandMentionAnalysis
 }
 
-const LLM_COLORS = {
-  perplexity: 'hsl(35, 90%, 50%)',
-  chatgpt: 'hsl(150, 60%, 40%)',
-  gemini: 'hsl(230, 70%, 60%)',
-  claude: 'hsl(12, 80%, 60%)',
-}
+// 색상 팔레트
+const BRAND_COLORS = [
+  'hsl(210, 80%, 55%)', // 내 브랜드 (파랑)
+  'hsl(25, 90%, 55%)',  // 경쟁사 1 (주황)
+  'hsl(150, 60%, 45%)', // 경쟁사 2 (녹색)
+  'hsl(280, 60%, 55%)', // 경쟁사 3 (보라)
+  'hsl(350, 70%, 55%)', // 경쟁사 4 (빨강)
+  'hsl(45, 85%, 50%)',  // 경쟁사 5 (노랑)
+  'hsl(180, 50%, 45%)', // 경쟁사 6 (청록)
+  'hsl(320, 60%, 55%)', // 경쟁사 7 (핑크)
+]
 
-const LLM_NAMES = {
+const MY_BRAND_COLOR = 'hsl(210, 80%, 55%)'
+const COMPETITOR_COLOR = 'hsl(25, 90%, 55%)'
+
+const LLM_NAMES: Record<string, string> = {
   perplexity: 'Perplexity',
   chatgpt: 'ChatGPT',
   gemini: 'Gemini',
@@ -43,65 +51,143 @@ const LLM_NAMES = {
 }
 
 /**
- * LLM 비교 차트 컴포넌트
+ * 브랜드 노출 비교 차트 컴포넌트
+ * 내 브랜드/도메인과 경쟁사 대비 노출수를 시각화
  */
-export function LLMComparisonChart({ results, summary, myDomain }: LLMComparisonChartProps) {
-  // 인용 수 비교 데이터
-  const citationData = useMemo(() => {
-    return Object.entries(results).map(([key, result]) => ({
-      name: LLM_NAMES[key as keyof typeof LLM_NAMES],
-      key,
-      citations: result?.citations.length ?? 0,
-      myDomainCitations: myDomain
-        ? result?.citations.filter(
-            (c: UnifiedCitation) => c.domain === myDomain.toLowerCase().replace(/^www\./, '')
-          ).length ?? 0
-        : 0,
-      success: result?.success ?? false,
-    }))
-  }, [results, myDomain])
+export function LLMComparisonChart({
+  results: _results,
+  summary: _summary,
+  myDomain: _myDomain,
+  myBrand,
+  brandMentionAnalysis,
+}: BrandComparisonChartProps) {
+  // 브랜드 언급 데이터가 있는지 확인
+  const hasBrandData = brandMentionAnalysis && brandMentionAnalysis.totalBrandMentions > 0
 
-  // 응답 시간 비교 데이터
-  const responseTimeData = useMemo(() => {
-    return Object.entries(results)
-      .filter(([, result]) => result?.success)
-      .map(([key, result]) => ({
-        name: LLM_NAMES[key as keyof typeof LLM_NAMES],
-        key,
-        time: result ? (result.responseTime / 1000) : 0,
-      }))
-  }, [results])
+  // 브랜드 노출 비교 데이터 (수평 막대 차트용)
+  const brandComparisonData = useMemo(() => {
+    if (!brandMentionAnalysis) return []
 
-  // 레이더 차트 데이터 (종합 성능)
-  const radarData = useMemo(() => {
-    return Object.entries(results)
-      .filter(([, result]) => result?.success)
-      .map(([key, result]) => {
-        const citations = result?.citations.length ?? 0
-        const responseTime = result?.responseTime ?? 10000
-        const myDomainCited = myDomain
-          ? result?.citations.some(
-              (c: UnifiedCitation) => c.domain === myDomain.toLowerCase().replace(/^www\./, '')
-            )
-          : false
+    const data: { name: string; count: number; color: string; isMyBrand: boolean }[] = []
 
-        return {
-          name: LLM_NAMES[key as keyof typeof LLM_NAMES],
-          인용수: Math.min(citations * 10, 100),
-          속도: Math.max(100 - (responseTime / 100), 0),
-          내도메인: myDomainCited ? 100 : 0,
-          고유도메인: result?.citations
-            ? new Set(result.citations.map((c: UnifiedCitation) => c.domain)).size * 15
-            : 0,
-        }
+    // 내 브랜드
+    if (brandMentionAnalysis.myBrand && brandMentionAnalysis.myBrand.mentionCount > 0) {
+      data.push({
+        name: brandMentionAnalysis.myBrand.brand || myBrand || '내 브랜드',
+        count: brandMentionAnalysis.myBrand.mentionCount,
+        color: MY_BRAND_COLOR,
+        isMyBrand: true,
       })
-  }, [results, myDomain])
+    }
+
+    // 경쟁사들 (상위 7개)
+    brandMentionAnalysis.competitors.slice(0, 7).forEach((competitor, index) => {
+      data.push({
+        name: competitor.brand,
+        count: competitor.mentionCount,
+        color: BRAND_COLORS[index + 1] || COMPETITOR_COLOR,
+        isMyBrand: false,
+      })
+    })
+
+    // 노출수 기준 내림차순 정렬
+    return data.sort((a, b) => b.count - a.count)
+  }, [brandMentionAnalysis, myBrand])
+
+  // 점유율 파이 차트 데이터
+  const marketShareData = useMemo(() => {
+    if (!brandMentionAnalysis) return []
+
+    const data: { name: string; value: number; color: string }[] = []
+
+    // 내 브랜드
+    if (brandMentionAnalysis.myBrand && brandMentionAnalysis.myBrand.mentionCount > 0) {
+      data.push({
+        name: brandMentionAnalysis.myBrand.brand || myBrand || '내 브랜드',
+        value: brandMentionAnalysis.myBrand.mentionCount,
+        color: MY_BRAND_COLOR,
+      })
+    }
+
+    // 경쟁사들 (상위 5개 + 기타)
+    const topCompetitors = brandMentionAnalysis.competitors.slice(0, 5)
+    const restCompetitors = brandMentionAnalysis.competitors.slice(5)
+
+    topCompetitors.forEach((competitor, index) => {
+      data.push({
+        name: competitor.brand,
+        value: competitor.mentionCount,
+        color: BRAND_COLORS[index + 1] || COMPETITOR_COLOR,
+      })
+    })
+
+    // 기타 경쟁사 합산
+    if (restCompetitors.length > 0) {
+      const restCount = restCompetitors.reduce((sum, c) => sum + c.mentionCount, 0)
+      if (restCount > 0) {
+        data.push({
+          name: `기타 (${restCompetitors.length}개)`,
+          value: restCount,
+          color: 'hsl(0, 0%, 70%)',
+        })
+      }
+    }
+
+    return data
+  }, [brandMentionAnalysis, myBrand])
+
+  // LLM별 브랜드 노출 데이터
+  const llmExposureData = useMemo(() => {
+    if (!brandMentionAnalysis) return []
+
+    const llmTypes: LLMType[] = ['perplexity', 'chatgpt', 'gemini', 'claude']
+
+    return llmTypes.map((llm) => {
+      // 내 브랜드가 해당 LLM에서 언급되었는지
+      const myBrandMentioned = brandMentionAnalysis.myBrand?.mentionedInLLMs.includes(llm)
+        ? 1
+        : 0
+
+      // 경쟁사 중 해당 LLM에서 언급된 수
+      const competitorMentions = brandMentionAnalysis.competitors.filter((c) =>
+        c.mentionedInLLMs.includes(llm)
+      ).length
+
+      return {
+        name: LLM_NAMES[llm],
+        내브랜드: myBrandMentioned,
+        경쟁사: competitorMentions,
+      }
+    })
+  }, [brandMentionAnalysis])
+
+  // 데이터가 없으면 안내 메시지
+  if (!hasBrandData) {
+    return (
+      <Card className="border-none shadow-md">
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-xl">
+            <BarChart3 className="h-6 w-6 text-primary" />
+            브랜드 노출 비교
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-muted-foreground text-center py-8">
+            브랜드 언급 데이터가 없어 차트를 표시할 수 없습니다.
+            <br />
+            <span className="text-sm">검색 시 브랜드명을 입력하면 경쟁사 대비 노출 현황을 분석합니다.</span>
+          </p>
+        </CardContent>
+      </Card>
+    )
+  }
 
   // 커스텀 툴팁
   interface TooltipPayloadEntry {
     color: string
     name: string
     value: number | string
+    payload?: { name: string; isMyBrand?: boolean }
   }
 
   interface TooltipProps {
@@ -130,142 +216,213 @@ export function LLMComparisonChart({ results, summary, myDomain }: LLMComparison
     )
   }
 
+  // 파이 차트 커스텀 레이블
+  const renderCustomLabel = ({
+    cx,
+    cy,
+    midAngle,
+    innerRadius,
+    outerRadius,
+    percent,
+  }: {
+    cx?: number
+    cy?: number
+    midAngle?: number
+    innerRadius?: number
+    outerRadius?: number
+    percent?: number
+  }) => {
+    // 필수 값이 없으면 렌더링 안함
+    if (cx === undefined || cy === undefined || midAngle === undefined ||
+        innerRadius === undefined || outerRadius === undefined || percent === undefined) {
+      return null
+    }
+    if (percent < 0.05) return null // 5% 미만은 레이블 표시 안함
+    const RADIAN = Math.PI / 180
+    const radius = innerRadius + (outerRadius - innerRadius) * 0.5
+    const x = cx + radius * Math.cos(-midAngle * RADIAN)
+    const y = cy + radius * Math.sin(-midAngle * RADIAN)
+
+    return (
+      <text
+        x={x}
+        y={y}
+        fill="white"
+        textAnchor="middle"
+        dominantBaseline="central"
+        fontSize={12}
+        fontWeight="bold"
+      >
+        {`${(percent * 100).toFixed(0)}%`}
+      </text>
+    )
+  }
+
+  // 내 브랜드 점유율 계산
+  const myBrandShare =
+    brandMentionAnalysis.myBrand && brandMentionAnalysis.totalBrandMentions > 0
+      ? Math.round(
+          (brandMentionAnalysis.myBrand.mentionCount / brandMentionAnalysis.totalBrandMentions) *
+            100
+        )
+      : 0
+
   return (
     <Card className="border-none shadow-md animate-fade-in-up">
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-xl">
-          <BarChart3 className="h-6 w-6 text-primary" />
-          LLM 성능 비교
+          <Building2 className="h-6 w-6 text-primary" />
+          브랜드 노출 비교
+          <Badge variant="secondary" className="ml-2">
+            총 {brandMentionAnalysis.totalBrandMentions}회 언급
+          </Badge>
         </CardTitle>
+        <p className="text-sm text-muted-foreground mt-1">
+          AI 응답에서 내 브랜드와 경쟁사 브랜드의 노출 현황을 비교합니다
+        </p>
       </CardHeader>
       <CardContent>
-        <Tabs defaultValue="citations" className="w-full">
+        <Tabs defaultValue="comparison" className="w-full">
           <TabsList className="grid w-full grid-cols-3 mb-6">
-            <TabsTrigger value="citations" className="flex items-center gap-2">
-              <Target className="h-4 w-4" />
-              인용 수
-            </TabsTrigger>
-            <TabsTrigger value="response" className="flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              응답 시간
-            </TabsTrigger>
-            <TabsTrigger value="radar" className="flex items-center gap-2">
+            <TabsTrigger value="comparison" className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
-              종합 비교
+              노출 비교
+            </TabsTrigger>
+            <TabsTrigger value="share" className="flex items-center gap-2">
+              <PieChartIcon className="h-4 w-4" />
+              점유율
+            </TabsTrigger>
+            <TabsTrigger value="llm" className="flex items-center gap-2">
+              <Building2 className="h-4 w-4" />
+              LLM별 분포
             </TabsTrigger>
           </TabsList>
 
-          {/* 인용 수 비교 */}
-          <TabsContent value="citations" className="mt-0">
+          {/* 브랜드 노출 비교 (수평 막대 차트) */}
+          <TabsContent value="comparison" className="mt-0">
             <div className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={citationData} barCategoryGap="20%">
+                <BarChart
+                  data={brandComparisonData}
+                  layout="vertical"
+                  barCategoryGap="20%"
+                  margin={{ left: 10, right: 30 }}
+                >
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis
-                    dataKey="name"
-                    tick={{ fontSize: 12 }}
-                    className="text-muted-foreground"
-                  />
-                  <YAxis tick={{ fontSize: 12 }} className="text-muted-foreground" />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Legend />
-                  <Bar
-                    dataKey="citations"
-                    name="전체 인용"
-                    radius={[4, 4, 0, 0]}
-                  >
-                    {citationData.map((entry) => (
-                      <Cell
-                        key={entry.key}
-                        fill={LLM_COLORS[entry.key as keyof typeof LLM_COLORS]}
-                        opacity={entry.success ? 1 : 0.3}
-                      />
-                    ))}
-                  </Bar>
-                  {myDomain && (
-                    <Bar
-                      dataKey="myDomainCitations"
-                      name="내 도메인"
-                      radius={[4, 4, 0, 0]}
-                      fill="hsl(var(--primary))"
-                    />
-                  )}
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            <p className="text-sm text-muted-foreground text-center mt-4">
-              각 LLM이 제공한 인용 수를 비교합니다
-              {myDomain && ` (파란색: ${myDomain} 인용)`}
-            </p>
-          </TabsContent>
-
-          {/* 응답 시간 비교 */}
-          <TabsContent value="response" className="mt-0">
-            <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={responseTimeData} layout="vertical" barCategoryGap="30%">
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis
-                    type="number"
-                    tick={{ fontSize: 12 }}
-                    unit="s"
-                    className="text-muted-foreground"
-                  />
+                  <XAxis type="number" tick={{ fontSize: 12 }} className="text-muted-foreground" allowDecimals={false} />
                   <YAxis
                     type="category"
                     dataKey="name"
-                    tick={{ fontSize: 12 }}
-                    width={80}
+                    tick={{ fontSize: 11 }}
+                    width={100}
                     className="text-muted-foreground"
                   />
                   <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="time" name="응답 시간 (초)" radius={[0, 4, 4, 0]}>
-                    {responseTimeData.map((entry) => (
+                  <Bar dataKey="count" name="언급 횟수" radius={[0, 4, 4, 0]}>
+                    {brandComparisonData.map((entry, index) => (
                       <Cell
-                        key={entry.key}
-                        fill={LLM_COLORS[entry.key as keyof typeof LLM_COLORS]}
+                        key={`cell-${index}`}
+                        fill={entry.color}
+                        strokeWidth={entry.isMyBrand ? 2 : 0}
+                        stroke={entry.isMyBrand ? 'hsl(210, 80%, 35%)' : undefined}
                       />
                     ))}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
-            <p className="text-sm text-muted-foreground text-center mt-4">
-              평균 응답 시간: {(summary.avgResponseTime / 1000).toFixed(2)}초
-            </p>
+            <div className="flex items-center justify-center gap-4 mt-4 text-sm">
+              <div className="flex items-center gap-2">
+                <span
+                  className="w-3 h-3 rounded-full"
+                  style={{ backgroundColor: MY_BRAND_COLOR }}
+                />
+                <span className="text-muted-foreground">내 브랜드</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span
+                  className="w-3 h-3 rounded-full"
+                  style={{ backgroundColor: COMPETITOR_COLOR }}
+                />
+                <span className="text-muted-foreground">경쟁사</span>
+              </div>
+            </div>
           </TabsContent>
 
-          {/* 레이더 차트 - 종합 비교 */}
-          <TabsContent value="radar" className="mt-0">
-            <div className="h-[350px] w-full">
+          {/* 점유율 파이 차트 */}
+          <TabsContent value="share" className="mt-0">
+            <div className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <RadarChart data={[
-                  { metric: '인용 수', ...Object.fromEntries(radarData.map(d => [d.name, d.인용수])) },
-                  { metric: '응답 속도', ...Object.fromEntries(radarData.map(d => [d.name, d.속도])) },
-                  { metric: '내 도메인', ...Object.fromEntries(radarData.map(d => [d.name, d.내도메인])) },
-                  { metric: '도메인 다양성', ...Object.fromEntries(radarData.map(d => [d.name, d.고유도메인])) },
-                ]}>
-                  <PolarGrid className="stroke-border" />
-                  <PolarAngleAxis dataKey="metric" tick={{ fontSize: 11 }} />
-                  <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fontSize: 10 }} />
-                  {radarData.map((entry) => (
-                    <Radar
-                      key={entry.name}
-                      name={entry.name}
-                      dataKey={entry.name}
-                      stroke={LLM_COLORS[Object.entries(LLM_NAMES).find(([, v]) => v === entry.name)?.[0] as keyof typeof LLM_COLORS]}
-                      fill={LLM_COLORS[Object.entries(LLM_NAMES).find(([, v]) => v === entry.name)?.[0] as keyof typeof LLM_COLORS]}
-                      fillOpacity={0.2}
-                      strokeWidth={2}
-                    />
-                  ))}
-                  <Legend />
-                  <Tooltip content={<CustomTooltip />} />
-                </RadarChart>
+                <PieChart>
+                  <Pie
+                    data={marketShareData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={renderCustomLabel}
+                    outerRadius={110}
+                    innerRadius={50}
+                    dataKey="value"
+                    nameKey="name"
+                  >
+                    {marketShareData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value: number) => [`${value}회`, '언급 횟수']}
+                  />
+                  <Legend
+                    layout="vertical"
+                    align="right"
+                    verticalAlign="middle"
+                    formatter={(value: string) => (
+                      <span className="text-sm text-foreground">{value}</span>
+                    )}
+                  />
+                </PieChart>
               </ResponsiveContainer>
             </div>
             <p className="text-sm text-muted-foreground text-center mt-4">
-              각 LLM의 종합 성능을 비교합니다 (정규화된 점수)
+              내 브랜드 점유율:{' '}
+              <span className="font-semibold text-primary">{myBrandShare}%</span>
+              {myBrandShare === 0 && (
+                <span className="text-red-500 ml-2">(AI 응답에서 언급되지 않음)</span>
+              )}
+            </p>
+          </TabsContent>
+
+          {/* LLM별 브랜드 노출 분포 */}
+          <TabsContent value="llm" className="mt-0">
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={llmExposureData} barCategoryGap="25%">
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                  <XAxis
+                    dataKey="name"
+                    tick={{ fontSize: 12 }}
+                    className="text-muted-foreground"
+                  />
+                  <YAxis tick={{ fontSize: 12 }} className="text-muted-foreground" allowDecimals={false} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend />
+                  <Bar
+                    dataKey="내브랜드"
+                    name="내 브랜드"
+                    fill={MY_BRAND_COLOR}
+                    radius={[4, 4, 0, 0]}
+                  />
+                  <Bar
+                    dataKey="경쟁사"
+                    name="경쟁사 브랜드 수"
+                    fill={COMPETITOR_COLOR}
+                    radius={[4, 4, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <p className="text-sm text-muted-foreground text-center mt-4">
+              각 LLM에서 내 브랜드 노출 여부와 경쟁사 브랜드 수를 비교합니다
             </p>
           </TabsContent>
         </Tabs>

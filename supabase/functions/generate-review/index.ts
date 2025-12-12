@@ -26,6 +26,18 @@ interface ReviewRequest {
     brandMentionCount: number
     successfulLLMs: string[]
     failedLLMs: string[]
+    // 브랜드 언급 분석 데이터
+    brandMentionAnalysis?: {
+      myBrand?: {
+        mentionCount: number
+        mentionedInLLMs: string[]
+      } | null
+      competitors?: Array<{
+        brand: string
+        mentionCount: number
+        mentionedInLLMs: string[]
+      }>
+    }
   }
   topDomains: Array<{
     domain: string
@@ -71,9 +83,9 @@ Deno.serve(async (req) => {
     // Gemini에게 전달할 프롬프트 구성
     const prompt = buildReviewPrompt(body)
 
-    // Gemini API 호출 (gemini-2.0-flash 사용)
+    // Gemini API 호출 (gemini-2.5-flash 사용)
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: {
@@ -161,7 +173,7 @@ Deno.serve(async (req) => {
 })
 
 /**
- * Gemini 프롬프트 생성
+ * Gemini 프롬프트 생성 - 분석 결과 기반 동적 구성
  */
 function buildReviewPrompt(data: ReviewRequest): string {
   const {
@@ -186,8 +198,57 @@ function buildReviewPrompt(data: ReviewRequest): string {
     .map((d, i) => `${i + 1}. ${d.domain} (${d.count}회)`)
     .join('\n')
 
+  // 미노출 LLM 목록 추출
+  const notExposedLLMs = Object.entries(llmResults)
+    .filter(([, result]) => result.success && !result.hasDomainCitation)
+    .map(([llm]) => llm)
+
+  // 노출된 LLM 목록 추출
+  const exposedLLMs = Object.entries(llmResults)
+    .filter(([, result]) => result.success && result.hasDomainCitation)
+    .map(([llm]) => llm)
+
+  // 성공한 LLM 중 인용 수
+  const successfulLLMCitations = Object.entries(llmResults)
+    .filter(([, result]) => result.success)
+    .map(([llm, result]) => ({ llm, count: result.citationCount }))
+    .sort((a, b) => b.count - a.count)
+
+  // 경쟁사 브랜드 언급 분석
+  const competitorAnalysis = summary.brandMentionAnalysis?.competitors || []
+  const myBrandMentionCount = summary.brandMentionAnalysis?.myBrand?.mentionCount || 0
+  const myBrandMentionedInLLMs = summary.brandMentionAnalysis?.myBrand?.mentionedInLLMs || []
+
+  // 상위 경쟁 브랜드 텍스트
+  const topCompetitorsText = competitorAnalysis.length > 0
+    ? competitorAnalysis.slice(0, 5)
+        .map((c, i) => `${i + 1}. ${c.brand}: ${c.mentionCount}회 (${c.mentionedInLLMs.join(', ')})`)
+        .join('\n')
+    : '경쟁사 브랜드 분석 데이터 없음'
+
+  // === 분석 결과에 따른 상황 판단 ===
+  const totalExposure = exposedLLMs.length
+  const totalSuccess = summary.successfulLLMs.length
+  const exposureRate = totalSuccess > 0 ? Math.round((totalExposure / totalSuccess) * 100) : 0
+
+  // 노출 상태 판단
+  let exposureStatus: 'excellent' | 'good' | 'moderate' | 'poor' | 'none'
+  if (exposureRate >= 75) exposureStatus = 'excellent'
+  else if (exposureRate >= 50) exposureStatus = 'good'
+  else if (exposureRate >= 25) exposureStatus = 'moderate'
+  else if (exposureRate > 0) exposureStatus = 'poor'
+  else exposureStatus = 'none'
+
+  // 경쟁 상황 분석
+  const topCompetitorDomain = topDomains[0]?.domain || '없음'
+  const topCompetitorCount = topDomains[0]?.count || 0
+  const myDomainRank = myDomain
+    ? topDomains.findIndex(d => d.domain.includes(myDomain.replace(/^www\./, ''))) + 1
+    : 0
+
+  // === 동적 프롬프트 구성 ===
   return `당신은 GEO(Generative Engine Optimization) 전문 컨설턴트입니다.
-아래 AI 검색 엔진 분석 결과를 바탕으로 전문적인 최종 검토 의견을 한국어로 작성해주세요.
+아래 AI 검색 엔진 분석 결과를 바탕으로 **이 분석 결과에 특화된** 구체적인 최종 검토 의견을 한국어로 작성해주세요.
 
 ## 분석 정보
 - 검색 쿼리: "${query}"
@@ -201,22 +262,70 @@ function buildReviewPrompt(data: ReviewRequest): string {
 - 브랜드 언급 여부: ${summary.brandMentioned ? `예 (${summary.brandMentionCount}회)` : '아니오'}
 - 성공한 LLM: ${summary.successfulLLMs.join(', ') || '없음'}
 - 실패한 LLM: ${summary.failedLLMs.join(', ') || '없음'}
+- **도메인 노출된 LLM: ${exposedLLMs.join(', ') || '없음'} (${exposureRate}% 노출률)**
+- **도메인 미노출 LLM: ${notExposedLLMs.join(', ') || '없음'}**
 
-## LLM별 결과
+## LLM별 상세 결과
 ${llmSummary}
+
+## LLM별 인용 수 순위
+${successfulLLMCitations.map((item, i) => `${i + 1}. ${item.llm}: ${item.count}개`).join('\n')}
 
 ## 상위 인용 도메인 (경쟁사)
 ${topDomainsText || '데이터 없음'}
+${myDomainRank > 0 ? `\n→ 내 도메인 순위: ${myDomainRank}위` : myDomain ? '\n→ 내 도메인: 상위 10위 밖' : ''}
 
-## 요청사항
-위 분석 결과를 종합하여 다음 구조로 최종 검토 의견을 작성해주세요:
+## 경쟁 브랜드 언급 현황
+${topCompetitorsText}
+${myBrand ? `\n→ 내 브랜드(${myBrand}): ${myBrandMentionCount}회 (${myBrandMentionedInLLMs.length > 0 ? myBrandMentionedInLLMs.join(', ') : '언급 없음'})` : ''}
 
-1. **종합 평가** (2-3문장): 현재 AI 검색 노출 상태에 대한 전반적인 평가
-2. **강점 분석** (2-3개 항목): 현재 잘 되고 있는 부분
-3. **개선 필요 사항** (2-3개 항목): 즉시 개선이 필요한 부분
-4. **경쟁사 분석** (2-3문장): 상위 인용 도메인 대비 경쟁력 분석
-5. **핵심 권장사항** (3-5개): 우선순위가 높은 구체적인 실행 방안
+## 현재 상황 진단
+- 노출 상태: ${exposureStatus === 'excellent' ? '매우 우수 (75%+ 노출)' : exposureStatus === 'good' ? '양호 (50-74% 노출)' : exposureStatus === 'moderate' ? '보통 (25-49% 노출)' : exposureStatus === 'poor' ? '미흡 (25% 미만 노출)' : '노출 없음'}
+- 최다 인용 경쟁 도메인: ${topCompetitorDomain} (${topCompetitorCount}회)
+${competitorAnalysis.length > 0 ? `- 최다 언급 경쟁 브랜드: ${competitorAnalysis[0].brand} (${competitorAnalysis[0].mentionCount}회)` : ''}
 
-마크다운 형식으로 작성하되, 실용적이고 즉시 실행 가능한 조언을 제공해주세요.
-전문적이지만 이해하기 쉬운 언어를 사용해주세요.`
+## 중요 지시사항
+**원론적인 GEO 전략이 아닌, 위 분석 결과에서 발견된 구체적인 문제점과 기회에 집중하세요.**
+
+1. **분석 결과 기반 평가**: 실제 데이터(노출률 ${exposureRate}%, 미노출 LLM: ${notExposedLLMs.join(', ') || '없음'}, 경쟁 도메인/브랜드 현황)를 인용하며 평가하세요.
+
+2. **경쟁 분석 구체화**:
+   - 상위 인용 도메인(${topCompetitorDomain} 등)과의 차이점 분석
+   - 경쟁 브랜드 대비 내 브랜드의 노출 위치 분석
+   ${myDomainRank > 0 ? `- 현재 ${myDomainRank}위인 순위를 어떻게 올릴 수 있는지` : myDomain ? '- 상위 10위에 진입하기 위한 전략' : ''}
+
+3. **미노출 LLM별 맞춤 전략**: ${notExposedLLMs.length > 0 ? `
+   ${notExposedLLMs.includes('chatgpt') ? '- **ChatGPT**: Bing 검색 최적화 필요. FCP 0.4초 미만 목표, 120-180단어 섹션 구성, 통계 19개+ 포함' : ''}
+   ${notExposedLLMs.includes('perplexity') ? '- **Perplexity**: 콘텐츠 신선도 강화 필요. 2-3일 갱신 주기, 첫 80토큰 내 직접 답변, 학술적 톤 사용' : ''}
+   ${notExposedLLMs.includes('gemini') ? '- **Gemini**: Google SERP 최적화 필요. Top 10 진입 목표, Core Web Vitals 준수, 멀티모달 콘텐츠 추가' : ''}
+   ${notExposedLLMs.includes('claude') ? '- **Claude**: Brave Search 최적화 필요. 650-1,050단어 간결 콘텐츠, 25단어 이내 핵심 문장, E-E-A-T 강화' : ''}` : '모든 LLM에 노출되어 있습니다. 노출 품질과 순위 향상에 집중하세요.'}
+
+4. **실행 가능한 권장사항**:
+   - "콘텐츠 품질을 개선하세요" ❌ (너무 일반적)
+   - "검색어 '${query}'에 대한 ${topCompetitorDomain}의 콘텐츠 구조를 벤치마킹하고, 비교표와 구체적 수치를 추가하세요" ✅ (구체적)
+   - 각 권장사항에 예상 효과와 우선순위 포함
+
+## 출력 구조
+
+### 1. 종합 평가 (3-4문장)
+- 현재 노출률(${exposureRate}%)과 경쟁 상황을 명시
+- 가장 심각한 문제점 1개와 가장 큰 기회 1개 언급
+
+### 2. 강점 분석 (노출된 LLM 기준)
+${exposedLLMs.length > 0 ? exposedLLMs.map(llm => `- ${llm}에서 노출된 이유 분석`).join('\n') : '- 현재 강점 없음 (전체 미노출 상태)'}
+
+### 3. 개선 필요 사항 (미노출 LLM별 구체적 전략)
+${notExposedLLMs.length > 0 ? notExposedLLMs.map(llm => `- **${llm}**: 해당 LLM 특성에 맞는 구체적 개선안 (수치 목표 포함)`).join('\n') : '- 노출 품질 향상을 위한 개선안'}
+
+### 4. 경쟁사 분석 (3-4문장)
+- ${topCompetitorDomain}이 상위 노출된 이유 분석
+- 경쟁 브랜드 대비 내 브랜드 포지셔닝
+- 차별화 전략 제안
+
+### 5. 핵심 권장사항 (우선순위별 3-5개)
+- 즉시 실행 가능한 액션 아이템
+- 각 항목에 예상 효과 명시 (예: "Perplexity 노출 확률 30% 향상 예상")
+- 구체적 수치 목표 포함
+
+마크다운 형식으로 작성하되, **이 분석 결과에만 해당하는** 맞춤형 조언을 제공해주세요.`
 }

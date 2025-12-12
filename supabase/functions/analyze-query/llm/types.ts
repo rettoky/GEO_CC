@@ -123,11 +123,20 @@ export const INSURANCE_COMPETITOR_BRANDS: Record<string, string[]> = {
   '캐롯손해보험': ['캐롯손해보험', '캐롯', 'Carrot'],
 }
 
+/**
+ * 경쟁사 브랜드 타입
+ */
+export interface CompetitorBrand {
+  name: string
+  aliases: string[]
+}
+
 export interface AnalyzeRequest {
   query: string
   domain?: string
   brand?: string
   brandAliases?: string[] // 브랜드 별칭 목록
+  competitors?: CompetitorBrand[] // 사용자 입력 경쟁사 목록
 }
 
 export interface AnalyzeResponse {

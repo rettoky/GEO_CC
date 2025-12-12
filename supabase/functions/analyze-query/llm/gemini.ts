@@ -59,7 +59,7 @@ export async function callGemini(query: string): Promise<LLMResult> {
     }
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: {
@@ -108,12 +108,11 @@ export async function callGemini(query: string): Promise<LLMResult> {
 
       chunks.forEach((chunk, index) => {
         if (chunk.web) {
-          // Gemini의 URI는 vertexaisearch.cloud.google.com 리다이렉트이므로
-          // title 필드에서 실제 도메인을 추출 (예: "wikipedia.org", "naver.com")
-          const domain = chunk.web.title?.toLowerCase().replace(/^www\./, '') || ''
+          // 복합 전략으로 도메인 추출
+          const domain = extractGeminiDomain(chunk.web)
 
-          // 빈 도메인이면 건너뛰기
-          if (!domain) {
+          // 빈 도메인이거나 제외 도메인이면 건너뛰기
+          if (!domain || isExcludedDomain(domain)) {
             return
           }
 
@@ -166,7 +165,7 @@ export async function callGemini(query: string): Promise<LLMResult> {
 
     return {
       success: true,
-      model: 'gemini-2.0-flash',
+      model: 'gemini-2.5-flash',
       answer,
       citations,
       responseTime,
@@ -183,7 +182,7 @@ export async function callGemini(query: string): Promise<LLMResult> {
     const responseTime = Date.now() - startTime
     return {
       success: false,
-      model: 'gemini-2.0-flash',
+      model: 'gemini-2.5-flash',
       answer: '',
       citations: [],
       responseTime,
@@ -205,9 +204,8 @@ function normalizeGeminiCitation(
   confidenceScores: number[],
   textSpans: TextSpan[]
 ): UnifiedCitation {
-  // Gemini의 URI는 vertexaisearch.cloud.google.com 리다이렉트
-  // 실제 도메인은 title 필드에 있음 (예: "wikipedia.org", "naver.com")
-  const domain = web.title?.toLowerCase().replace(/^www\./, '') || extractDomain(web.uri)
+  // 복합 전략으로 도메인 추출
+  const domain = extractGeminiDomain(web)
   const cleanUrl = removeQueryParams(web.uri)
   // Gemini는 URL 문자열 매칭 대신 textSpans.length를 사용
   const mentionCount = textSpans.length > 0 ? textSpans.length : 1
@@ -243,6 +241,78 @@ function extractDomain(url: string): string {
   } catch {
     return ''
   }
+}
+
+/**
+ * 문자열이 도메인 형식인지 확인
+ * 예: "meritz.com" → true, "메리츠화재 공식 사이트" → false
+ */
+function isDomainFormat(text: string): boolean {
+  if (!text) return false
+  const cleaned = text.toLowerCase().trim().replace(/^www\./, '')
+  // 도메인 패턴: 알파벳/숫자로 시작, 점(.)으로 구분된 2-3개 부분
+  const domainPattern = /^[a-z0-9][a-z0-9-]*(\.[a-z0-9][a-z0-9-]*)+$/
+  return domainPattern.test(cleaned)
+}
+
+/**
+ * Gemini URI에서 원본 URL 파라미터 추출 시도
+ * vertexaisearch 리다이렉트 URL에서 실제 URL 찾기
+ */
+function extractOriginalUrlFromGeminiUri(uri: string): string | null {
+  try {
+    const urlObj = new URL(uri)
+    // 일반적인 리다이렉트 파라미터들
+    const possibleParams = ['url', 'q', 'target', 'redirect', 'dest', 'link']
+    for (const param of possibleParams) {
+      const value = urlObj.searchParams.get(param)
+      if (value && (value.startsWith('http://') || value.startsWith('https://'))) {
+        return value
+      }
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Gemini 인용에서 도메인 추출 (복합 전략)
+ * 1. title이 도메인 형식이면 사용
+ * 2. URI에서 원본 URL 파라미터 추출 시도
+ * 3. URI가 제외 도메인이 아니면 직접 추출
+ */
+function extractGeminiDomain(web: { uri: string; title?: string }): string {
+  // 1. title이 도메인 형식이면 사용
+  if (web.title && isDomainFormat(web.title)) {
+    return web.title.toLowerCase().trim().replace(/^www\./, '')
+  }
+
+  // 2. URI에서 원본 URL 파라미터 추출 시도
+  const originalUrl = extractOriginalUrlFromGeminiUri(web.uri)
+  if (originalUrl) {
+    const domain = extractDomain(originalUrl)
+    if (domain && !isExcludedDomain(domain)) {
+      return domain
+    }
+  }
+
+  // 3. URI에서 직접 도메인 추출 (제외 도메인 아닌 경우만)
+  const directDomain = extractDomain(web.uri)
+  if (directDomain && !isExcludedDomain(directDomain)) {
+    return directDomain
+  }
+
+  // 4. 모든 방법 실패 시 title에서 도메인 패턴 추출 시도
+  if (web.title) {
+    // title에서 도메인처럼 보이는 부분 추출 (예: "naver.com에서 제공")
+    const domainMatch = web.title.match(/([a-z0-9][a-z0-9-]*\.[a-z]{2,}(\.[a-z]{2,})?)/i)
+    if (domainMatch) {
+      return domainMatch[1].toLowerCase().replace(/^www\./, '')
+    }
+  }
+
+  return ''
 }
 
 /**

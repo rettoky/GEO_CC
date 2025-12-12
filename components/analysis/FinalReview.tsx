@@ -150,6 +150,18 @@ export function FinalReview({
             brandMentionCount: summary.brandMentionCount,
             successfulLLMs: summary.successfulLLMs,
             failedLLMs: summary.failedLLMs,
+            // 브랜드 언급 분석 데이터 추가
+            brandMentionAnalysis: summary.brandMentionAnalysis ? {
+              myBrand: summary.brandMentionAnalysis.myBrand ? {
+                mentionCount: summary.brandMentionAnalysis.myBrand.mentionCount,
+                mentionedInLLMs: summary.brandMentionAnalysis.myBrand.mentionedInLLMs,
+              } : null,
+              competitors: summary.brandMentionAnalysis.competitors?.map(c => ({
+                brand: c.brand,
+                mentionCount: c.mentionCount,
+                mentionedInLLMs: c.mentionedInLLMs,
+              })) || [],
+            } : undefined,
           },
           topDomains: getTopDomains(),
           llmResults: getLLMResults(),
