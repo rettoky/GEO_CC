@@ -4,6 +4,17 @@
 
 import type { LLMResult, UnifiedCitation, TextSpan } from './types.ts'
 
+/**
+ * 제외할 내부 서비스 도메인 목록
+ * LLM/검색 인프라 도메인은 실제 콘텐츠 제공자가 아님
+ */
+const EXCLUDED_DOMAINS = [
+  'vertexaisearch.cloud.google.com',
+  'googleapis.com',
+  'googleusercontent.com',
+  'gstatic.com',
+]
+
 interface OpenAIAnnotation {
   type: string
   url: string
@@ -80,8 +91,17 @@ export async function callOpenAI(query: string): Promise<LLMResult> {
       textSpans: import('./types.ts').TextSpan[]
     }>()
 
+    let citationsFiltered = 0
+
     annotations.forEach((annotation) => {
       if (annotation.type === 'url_citation') {
+        // 제외 도메인 필터링
+        const domain = extractDomain(annotation.url)
+        if (isExcludedDomain(domain)) {
+          citationsFiltered++
+          return
+        }
+
         // URL 정규화 (쿼리 파라미터 제거)
         const cleanUrl = annotation.url.split('?')[0]
 
@@ -118,6 +138,11 @@ export async function callOpenAI(query: string): Promise<LLMResult> {
       citations,
       responseTime,
       timestamp: new Date().toISOString(),
+      _debug: {
+        annotationsCount: annotations.length,
+        uniqueUrlsCount: citationMap.size,
+        citationsFiltered,
+      },
     }
   } catch (error) {
     const responseTime = Date.now() - startTime
@@ -188,4 +213,15 @@ function removeQueryParams(url: string): string {
   } catch {
     return url
   }
+}
+
+/**
+ * 제외 도메인 여부 확인
+ */
+function isExcludedDomain(domain: string): boolean {
+  if (!domain) return false
+  const normalizedDomain = domain.toLowerCase()
+  return EXCLUDED_DOMAINS.some(excluded =>
+    normalizedDomain === excluded || normalizedDomain.endsWith('.' + excluded)
+  )
 }

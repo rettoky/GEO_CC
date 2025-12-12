@@ -4,6 +4,17 @@
 
 import type { LLMResult, UnifiedCitation } from './types.ts'
 
+/**
+ * 제외할 내부 서비스 도메인 목록
+ * LLM/검색 인프라 도메인은 실제 콘텐츠 제공자가 아님
+ */
+const EXCLUDED_DOMAINS = [
+  'vertexaisearch.cloud.google.com',
+  'googleapis.com',
+  'googleusercontent.com',
+  'gstatic.com',
+]
+
 interface ClaudeWebSearchResult {
   type: string
   url: string
@@ -80,9 +91,19 @@ export async function callClaude(query: string): Promise<LLMResult> {
       }
     }
 
-    // searchResults를 UnifiedCitation으로 변환
+    // searchResults를 UnifiedCitation으로 변환 (제외 도메인 필터링 포함)
+    let citationsFiltered = 0
     const citations: UnifiedCitation[] = searchResults
-      .filter(result => result.type === 'web_search_result')
+      .filter(result => {
+        if (result.type !== 'web_search_result') return false
+        // 제외 도메인 필터링
+        const domain = extractDomain(result.url)
+        if (isExcludedDomain(domain)) {
+          citationsFiltered++
+          return false
+        }
+        return true
+      })
       .map((result, index) => normalizeClaudeCitation(result, index + 1, answer))
 
     return {
@@ -92,6 +113,10 @@ export async function callClaude(query: string): Promise<LLMResult> {
       citations,
       responseTime,
       timestamp: new Date().toISOString(),
+      _debug: {
+        searchResultsCount: searchResults.length,
+        citationsFiltered,
+      },
     }
   } catch (error) {
     const responseTime = Date.now() - startTime
@@ -165,11 +190,30 @@ function removeQueryParams(url: string): string {
 }
 
 /**
- * 답변에서 URL 언급 횟수 카운트
+ * 답변에서 도메인 언급 횟수 카운트
+ * 전체 URL 대신 도메인으로 검색하여 더 정확한 카운트 제공
+ * 예: "https://meritz.com/page" → "meritz.com" 검색
  */
 function countMentions(url: string, answer: string): number {
-  const escapedUrl = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const regex = new RegExp(escapedUrl, 'gi')
+  const domain = extractDomain(url)
+  if (!domain) return 1  // 도메인 추출 실패 시 기본값 1
+
+  // 도메인의 점(.)을 이스케이프하여 정규식 생성
+  const escapedDomain = domain.replace(/\./g, '\\.')
+  const regex = new RegExp(escapedDomain, 'gi')
   const matches = answer.match(regex)
-  return matches ? matches.length : 0
+
+  // API가 반환한 인용은 최소 1회 언급된 것으로 간주
+  return matches ? Math.max(matches.length, 1) : 1
+}
+
+/**
+ * 제외 도메인 여부 확인
+ */
+function isExcludedDomain(domain: string): boolean {
+  if (!domain) return false
+  const normalizedDomain = domain.toLowerCase()
+  return EXCLUDED_DOMAINS.some(excluded =>
+    normalizedDomain === excluded || normalizedDomain.endsWith('.' + excluded)
+  )
 }

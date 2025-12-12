@@ -35,6 +35,10 @@ export interface LLMResult {
   responseTime: number
   error?: string
   timestamp: string
+  // 디버그 메타데이터 (각 LLM별 원시 응답 정보)
+  _debug?: {
+    [key: string]: unknown
+  }
 }
 
 export interface AnalysisResults {

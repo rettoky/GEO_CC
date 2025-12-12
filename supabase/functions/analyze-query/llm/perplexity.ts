@@ -2,7 +2,18 @@
  * Perplexity API 호출 함수
  */
 
-import type { LLMResult, UnifiedCitation } from './types.ts'
+import type { LLMResult, UnifiedCitation, TextSpan } from './types.ts'
+
+/**
+ * 제외할 내부 서비스 도메인 목록
+ * LLM/검색 인프라 도메인은 실제 콘텐츠 제공자가 아님
+ */
+const EXCLUDED_DOMAINS = [
+  'vertexaisearch.cloud.google.com',
+  'googleapis.com',
+  'googleusercontent.com',
+  'gstatic.com',
+]
 
 interface PerplexitySearchResult {
   url: string
@@ -62,13 +73,26 @@ export async function callPerplexity(query: string): Promise<LLMResult> {
 
     // search_results 우선, 없으면 citations 사용
     const citations: UnifiedCitation[] = []
+    let citationsFiltered = 0
 
     if (data.search_results && data.search_results.length > 0) {
       data.search_results.forEach((result, index) => {
+        // 제외 도메인 필터링
+        const domain = extractDomain(result.url)
+        if (isExcludedDomain(domain)) {
+          citationsFiltered++
+          return
+        }
         citations.push(normalizePerplexityCitation(result, index + 1, answer))
       })
     } else if (data.citations && data.citations.length > 0) {
       data.citations.forEach((url, index) => {
+        // 제외 도메인 필터링
+        const domain = extractDomain(url)
+        if (isExcludedDomain(domain)) {
+          citationsFiltered++
+          return
+        }
         citations.push(normalizePerplexityCitation({ url, title: '', snippet: '' }, index + 1, answer))
       })
     }
@@ -80,6 +104,11 @@ export async function callPerplexity(query: string): Promise<LLMResult> {
       citations,
       responseTime,
       timestamp: new Date().toISOString(),
+      _debug: {
+        searchResultsCount: data.search_results?.length ?? 0,
+        citationsCount: data.citations?.length ?? 0,
+        citationsFiltered,
+      },
     }
   } catch (error) {
     const responseTime = Date.now() - startTime
@@ -108,6 +137,8 @@ function normalizePerplexityCitation(
   const cleanUrl = removeQueryParams(result.url)
   // [1], [2] 형태의 인용 마커 카운트 (방법론 문서 권장 방식)
   const mentionCount = countCitationMarkers(position, answer)
+  // 인용 마커 위치를 텍스트 스팬으로 추출
+  const textSpans = extractCitationMarkerSpans(position, answer)
 
   return {
     id: crypto.randomUUID(),
@@ -122,7 +153,7 @@ function normalizePerplexityCitation(
     mentionCount,
     avgConfidence: null,
     confidenceScores: [],
-    textSpans: [],
+    textSpans,
   }
 }
 
@@ -163,4 +194,39 @@ function countCitationMarkers(citationIndex: number, answer: string): number {
   const pattern = new RegExp(`\\[${citationIndex}\\]`, 'g')
   const matches = answer.match(pattern)
   return matches ? matches.length : 0
+}
+
+/**
+ * 답변에서 인용 마커 [N] 위치를 TextSpan 배열로 추출
+ */
+function extractCitationMarkerSpans(citationIndex: number, answer: string): TextSpan[] {
+  const textSpans: TextSpan[] = []
+  const pattern = new RegExp(`\\[${citationIndex}\\]`, 'g')
+  let match
+
+  while ((match = pattern.exec(answer)) !== null) {
+    // 마커 앞뒤로 문맥을 포함한 텍스트 추출 (최대 50자)
+    const contextStart = Math.max(0, match.index - 30)
+    const contextEnd = Math.min(answer.length, match.index + match[0].length + 30)
+    const contextText = answer.substring(contextStart, contextEnd)
+
+    textSpans.push({
+      start: match.index,
+      end: match.index + match[0].length,
+      text: contextText.trim(),
+    })
+  }
+
+  return textSpans
+}
+
+/**
+ * 제외 도메인 여부 확인
+ */
+function isExcludedDomain(domain: string): boolean {
+  if (!domain) return false
+  const normalizedDomain = domain.toLowerCase()
+  return EXCLUDED_DOMAINS.some(excluded =>
+    normalizedDomain === excluded || normalizedDomain.endsWith('.' + excluded)
+  )
 }
