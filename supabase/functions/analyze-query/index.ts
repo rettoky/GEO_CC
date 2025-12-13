@@ -560,17 +560,17 @@ function findAliasMatchingDomains(
   // 별칭에서 영문 패턴 추출 (한글 제외, 영문만)
   const englishPatterns: string[] = []
   for (const alias of aliases) {
-    // 영문만 추출 (최소 5자 이상으로 강화 - 오탐 방지)
+    // 영문만 추출 (최소 3자 이상 - AIA, 라이나 등 짧은 브랜드명 지원)
     const englishOnly = alias.toLowerCase().replace(/[^a-z0-9]/g, '')
 
-    // 5자 이상이고 일반적인 단어가 아닌 경우만 패턴으로 사용
-    if (englishOnly.length >= 5 && !commonWords.has(englishOnly)) {
+    // 3자 이상이고 일반적인 단어가 아닌 경우만 패턴으로 사용
+    if (englishOnly.length >= 3 && !commonWords.has(englishOnly)) {
       englishPatterns.push(englishOnly)
     }
 
-    // 원본 별칭도 소문자로 추가 (영문인 경우, 5자 이상)
+    // 원본 별칭도 소문자로 추가 (영문인 경우, 3자 이상)
     const lowerAlias = alias.toLowerCase()
-    if (/^[a-z0-9]+$/.test(lowerAlias) && lowerAlias.length >= 5 && !commonWords.has(lowerAlias)) {
+    if (/^[a-z0-9]+$/.test(lowerAlias) && lowerAlias.length >= 3 && !commonWords.has(lowerAlias)) {
       englishPatterns.push(lowerAlias)
     }
   }

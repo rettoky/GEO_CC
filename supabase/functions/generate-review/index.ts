@@ -103,7 +103,7 @@ Deno.serve(async (req) => {
           ],
           generationConfig: {
             temperature: 0.7,
-            maxOutputTokens: 2048,
+            maxOutputTokens: 8192,  // 한국어 검토 의견이 잘리지 않도록 증가
           },
         }),
       }
