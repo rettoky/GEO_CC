@@ -55,7 +55,10 @@ export async function callOpenAI(query: string): Promise<LLMResult> {
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         input: query,
-        tools: [{ type: 'web_search_preview' }],
+        tools: [{
+          type: 'web_search_preview',
+          search_context_size: 'low',  // 비용 절감: medium(기본) → low
+        }],
       }),
     })
 
