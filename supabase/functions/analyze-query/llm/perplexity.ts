@@ -58,7 +58,7 @@ export async function callPerplexity(query: string): Promise<LLMResult> {
             content: query,
           },
         ],
-        search_context_size: 'high',
+        search_context_size: 'low',  // 비용 절감: high($12) → low($5) per 1K searches
       }),
     })
 
