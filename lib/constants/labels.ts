@@ -3,6 +3,21 @@
  * 한국어 UI 레이블 및 메시지 상수
  */
 
+import type { LLMType } from '@/lib/supabase/types'
+
+/**
+ * 활성화된 LLM 목록 (UI에 표시할 LLM)
+ * Claude는 API 키 미설정으로 임시 비활성화
+ */
+export const ACTIVE_LLMS: LLMType[] = ['perplexity', 'chatgpt', 'gemini']
+
+/**
+ * 특정 LLM이 활성화되었는지 확인
+ */
+export function isLLMActive(llm: LLMType): boolean {
+  return ACTIVE_LLMS.includes(llm)
+}
+
 export const LABELS = {
   // LLM 이름
   LLM_NAMES: {

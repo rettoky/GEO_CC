@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import type { AnalysisResults, AnalysisSummary, UnifiedCitation } from '@/types'
 import ReactMarkdown from 'react-markdown'
+import { ACTIVE_LLMS } from '@/lib/constants/labels'
 
 interface FinalReviewProps {
   analysisId?: string  // 분석 ID (저장용)
@@ -87,7 +88,7 @@ export function FinalReview({
       hasBrandMention: boolean
     }> = {}
 
-    const llmKeys: LLMKey[] = ['perplexity', 'chatgpt', 'gemini', 'claude']
+    const llmKeys: LLMKey[] = ACTIVE_LLMS as LLMKey[]
 
     llmKeys.forEach((llm) => {
       const result = results[llm]

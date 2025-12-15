@@ -34,7 +34,8 @@ import {
   BarChart3,
   Table as TableIcon,
 } from 'lucide-react'
-import type { AnalysisResults, AnalysisSummary } from '@/types'
+import type { AnalysisResults, AnalysisSummary, LLMType } from '@/types'
+import { ACTIVE_LLMS } from '@/lib/constants/labels'
 
 interface QueryResult {
   id: string
@@ -51,8 +52,14 @@ interface QueryComparisonViewProps {
   onRemoveQuery?: (id: string) => void
 }
 
-const LLM_NAMES = ['Perplexity', 'ChatGPT', 'Gemini', 'Claude'] as const
-const LLM_KEYS = ['perplexity', 'chatgpt', 'gemini', 'claude'] as const
+const LLM_DISPLAY_NAMES: Record<LLMType, string> = {
+  perplexity: 'Perplexity',
+  chatgpt: 'ChatGPT',
+  gemini: 'Gemini',
+  claude: 'Claude',
+}
+const LLM_KEYS = ACTIVE_LLMS
+const LLM_NAMES = ACTIVE_LLMS.map(key => LLM_DISPLAY_NAMES[key])
 
 const LLM_COLORS = {
   perplexity: '#f59e0b',

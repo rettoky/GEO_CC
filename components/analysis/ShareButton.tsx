@@ -11,6 +11,7 @@ import {
 import { Share2, Download, Copy, Check, Link2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import type { AnalysisResults, AnalysisSummary } from '@/types'
+import { ACTIVE_LLMS } from '@/lib/constants/labels'
 
 interface ShareButtonProps {
   query: string
@@ -47,13 +48,12 @@ export function ShareButton({
       `• 고유 도메인: ${summary.uniqueDomains}`,
       `• 내 도메인 인용: ${summary.myDomainCitationCount}회`,
       `• 브랜드 언급: ${summary.brandMentionCount}회`,
-      `• 성공 LLM: ${summary.successfulLLMs.length}/4`,
+      `• 성공 LLM: ${summary.successfulLLMs.filter(llm => ACTIVE_LLMS.includes(llm)).length}/${ACTIVE_LLMS.length}`,
       ``,
       `🤖 LLM별 결과`,
       results.perplexity?.success ? `• Perplexity: ${results.perplexity.citations.length}개 인용` : '• Perplexity: 실패',
       results.chatgpt?.success ? `• ChatGPT: ${results.chatgpt.citations.length}개 인용` : '• ChatGPT: 실패',
       results.gemini?.success ? `• Gemini: ${results.gemini.citations.length}개 인용` : '• Gemini: 실패',
-      results.claude?.success ? `• Claude: ${results.claude.citations.length}개 인용` : '• Claude: 실패',
       ``,
       `🔗 Powered by GEO Analyzer`,
     ].filter(Boolean)

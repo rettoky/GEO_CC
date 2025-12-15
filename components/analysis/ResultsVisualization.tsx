@@ -15,46 +15,37 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts'
-import type { AnalysisSummary } from '@/types'
+import type { AnalysisSummary, LLMType } from '@/types'
+import { ACTIVE_LLMS } from '@/lib/constants/labels'
 
 interface ResultsVisualizationProps {
   summary: AnalysisSummary
 }
 
-const LLM_COLORS = {
+const LLM_COLORS: Record<LLMType, string> = {
   perplexity: '#9333ea',
   chatgpt: '#16a34a',
   gemini: '#2563eb',
   claude: '#ea580c',
 }
 
+const LLM_DISPLAY_NAMES: Record<LLMType, string> = {
+  perplexity: 'Perplexity',
+  chatgpt: 'ChatGPT',
+  gemini: 'Gemini',
+  claude: 'Claude',
+}
+
 /**
  * 분석 결과 시각화 컴포넌트
  */
 export function ResultsVisualization({ summary }: ResultsVisualizationProps) {
-  // 인용 수 데이터
-  const citationData = [
-    {
-      name: 'Perplexity',
-      citations: summary.citationRateByLLM.perplexity || 0,
-      color: LLM_COLORS.perplexity,
-    },
-    {
-      name: 'ChatGPT',
-      citations: summary.citationRateByLLM.chatgpt || 0,
-      color: LLM_COLORS.chatgpt,
-    },
-    {
-      name: 'Gemini',
-      citations: summary.citationRateByLLM.gemini || 0,
-      color: LLM_COLORS.gemini,
-    },
-    {
-      name: 'Claude',
-      citations: summary.citationRateByLLM.claude || 0,
-      color: LLM_COLORS.claude,
-    },
-  ].filter((item) => item.citations > 0)
+  // 인용 수 데이터 (활성화된 LLM만 표시)
+  const citationData = ACTIVE_LLMS.map((llm) => ({
+    name: LLM_DISPLAY_NAMES[llm],
+    citations: summary.citationRateByLLM[llm] || 0,
+    color: LLM_COLORS[llm],
+  })).filter((item) => item.citations > 0)
 
   // 성공/실패 데이터
   const statusData = [

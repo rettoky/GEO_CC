@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Trophy, Minus, TrendingUp, TrendingDown, Target, AlertTriangle, CheckCircle2, XCircle, Link2 } from 'lucide-react'
 import { Progress } from '@/components/ui/progress'
 import type { AnalysisResults, UnifiedCitation, CrossValidation, LLMType } from '@/types'
+import { ACTIVE_LLMS } from '@/lib/constants/labels'
 
 type SectionType = 'myDomain' | 'topCompetitors' | 'ranking' | 'recommendations' | 'all'
 
@@ -327,7 +328,7 @@ export function CompetitorComparison({ results, myDomain, crossValidation, secti
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">LLM 커버리지</span>
-                      <span className="font-semibold">{domain.llmCount}/4</span>
+                      <span className="font-semibold">{domain.llmCount}/{ACTIVE_LLMS.length}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">평균 순위</span>
@@ -337,7 +338,7 @@ export function CompetitorComparison({ results, myDomain, crossValidation, secti
 
                   {/* LLM 노출 현황 */}
                   <div className="mt-3 flex gap-1">
-                    {(['perplexity', 'chatgpt', 'gemini', 'claude'] as LLMType[]).map(llm => (
+                    {ACTIVE_LLMS.map(llm => (
                       <Badge
                         key={llm}
                         variant={domain.llms.includes(llm) ? 'default' : 'outline'}
@@ -429,10 +430,10 @@ export function CompetitorComparison({ results, myDomain, crossValidation, secti
                       </div>
                       <div className="text-right">
                         <div className="text-xs text-muted-foreground">LLM 수</div>
-                        <div className="text-lg font-bold">{stat.llmCount}/4</div>
+                        <div className="text-lg font-bold">{stat.llmCount}/{ACTIVE_LLMS.length}</div>
                       </div>
                       <div className="flex gap-1">
-                        {(['perplexity', 'chatgpt', 'gemini', 'claude'] as LLMType[]).map(llm => (
+                        {ACTIVE_LLMS.map(llm => (
                           <div
                             key={llm}
                             className={`w-6 h-6 rounded text-xs flex items-center justify-center font-bold ${

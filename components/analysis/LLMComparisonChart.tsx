@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { BarChart3, PieChart as PieChartIcon, Building2 } from 'lucide-react'
 import type { AnalysisResults, AnalysisSummary, BrandMentionAnalysis, LLMType } from '@/types'
+import { ACTIVE_LLMS } from '@/lib/constants/labels'
 
 interface BrandComparisonChartProps {
   results: AnalysisResults
@@ -140,7 +141,8 @@ export function LLMComparisonChart({
   const llmExposureData = useMemo(() => {
     if (!brandMentionAnalysis) return []
 
-    const llmTypes: LLMType[] = ['perplexity', 'chatgpt', 'gemini', 'claude']
+    // 활성화된 LLM만 표시
+    const llmTypes: LLMType[] = ACTIVE_LLMS
 
     return llmTypes.map((llm) => {
       // 내 브랜드가 해당 LLM에서 언급되었는지

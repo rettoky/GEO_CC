@@ -355,7 +355,7 @@ export function QueryInput({ onSubmit, isLoading, initialData }: QueryInputProps
           </div>
           <CardTitle className="text-3xl font-bold tracking-tight">AI 검색 엔진 인용 분석</CardTitle>
           <CardDescription className="text-lg mt-2 max-w-2xl mx-auto">
-            Perplexity, ChatGPT, Gemini, Claude 4개 AI 검색 엔진에서<br className="hidden sm:block" />
+            Perplexity, ChatGPT, Gemini 3개 AI 검색 엔진에서<br className="hidden sm:block" />
             내 도메인이 어떻게 인용되는지 한눈에 확인하세요
           </CardDescription>
         </CardHeader>

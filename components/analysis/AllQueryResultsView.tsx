@@ -16,6 +16,7 @@ import {
   List,
 } from 'lucide-react'
 import type { AnalysisResults, AnalysisSummary, LLMType } from '@/types'
+import { ACTIVE_LLMS } from '@/lib/constants/labels'
 
 interface QueryAnalysisResult {
   query: string
@@ -125,7 +126,7 @@ export const AllQueryResultsView = forwardRef<AllQueryResultsViewHandle, AllQuer
 
   // 전체 인용 통계 계산
   const aggregatedStats = useMemo(() => {
-    const llmTypes: LLMType[] = ['perplexity', 'chatgpt', 'gemini', 'claude']
+    const llmTypes: LLMType[] = ACTIVE_LLMS
     const stats = {
       totalQueries: allQueryResults.length,
       successfulQueries: 0,
@@ -195,7 +196,7 @@ export const AllQueryResultsView = forwardRef<AllQueryResultsViewHandle, AllQuer
 
   // 경쟁사 브랜드가 LLM 응답에 포함되어 있는지 확인
   const hasCompetitorMention = (result: QueryAnalysisResult, aliases: string[]): boolean => {
-    const llmTypes: LLMType[] = ['perplexity', 'chatgpt', 'gemini', 'claude']
+    const llmTypes: LLMType[] = ACTIVE_LLMS
     for (const llm of llmTypes) {
       const llmResult = result.results[llm]
       if (llmResult?.success && llmResult.answer) {
@@ -344,8 +345,8 @@ export const AllQueryResultsView = forwardRef<AllQueryResultsViewHandle, AllQuer
             {/* LLM별 성공률 */}
             <div>
               <h4 className="text-sm font-semibold mb-3">LLM별 성공률 및 인용</h4>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {(['perplexity', 'chatgpt', 'gemini', 'claude'] as LLMType[]).map((llm) => {
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {ACTIVE_LLMS.map((llm) => {
                   const rate = aggregatedStats.llmSuccessRate[llm]
                   const successRate =
                     rate.total > 0 ? Math.round((rate.success / rate.total) * 100) : 0
@@ -463,7 +464,7 @@ export const AllQueryResultsView = forwardRef<AllQueryResultsViewHandle, AllQuer
               ) : (
                 filteredQueryResults.map(({ result, originalIndex }, index) => {
                 const isExpanded = expandedQueries.has(index)
-                const llmTypes: LLMType[] = ['perplexity', 'chatgpt', 'gemini', 'claude']
+                const llmTypes: LLMType[] = ACTIVE_LLMS
                 const successCount = llmTypes.filter(
                   (llm) => result.results[llm]?.success
                 ).length
@@ -495,7 +496,7 @@ export const AllQueryResultsView = forwardRef<AllQueryResultsViewHandle, AllQuer
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           <span className="text-xs text-muted-foreground">
-                            {successCount}/4 LLM 성공
+                            {successCount}/{ACTIVE_LLMS.length} LLM 성공
                           </span>
                           {isExpanded ? (
                             <ChevronUp className="h-4 w-4" />

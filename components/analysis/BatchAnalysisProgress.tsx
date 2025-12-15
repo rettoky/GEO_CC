@@ -18,6 +18,15 @@ import {
   Zap
 } from 'lucide-react'
 import type { BatchAnalysisProgress } from '@/lib/analysis/variation-orchestrator'
+import { ACTIVE_LLMS } from '@/lib/constants/labels'
+
+// LLM 표시 이름 매핑
+const LLM_DISPLAY_NAMES: Record<string, string> = {
+  perplexity: 'Perplexity',
+  chatgpt: 'ChatGPT',
+  gemini: 'Gemini',
+  claude: 'Claude',
+}
 
 interface BatchAnalysisProgressProps {
   progress: BatchAnalysisProgress
@@ -42,14 +51,14 @@ const STAGE_INFO = {
   },
   base_analysis: {
     label: '기본쿼리',
-    description: '기본 쿼리를 4개 AI 엔진에서 분석하고 있습니다...',
+    description: `기본 쿼리를 ${ACTIVE_LLMS.length}개 AI 엔진에서 분석하고 있습니다...`,
     icon: Cpu,
     color: 'text-cyan-500',
     bgColor: 'bg-cyan-50',
   },
   llm_analysis: {
     label: '변형분석',
-    description: '변형 쿼리들을 4개 AI 엔진에서 순차적으로 분석하고 있습니다...',
+    description: `변형 쿼리들을 ${ACTIVE_LLMS.length}개 AI 엔진에서 순차적으로 분석하고 있습니다...`,
     icon: Cpu,
     color: 'text-orange-500',
     bgColor: 'bg-orange-50',
@@ -177,10 +186,10 @@ export function BatchAnalysisProgressTracker({
                   {progress.currentVariation} / {progress.totalVariations}
                 </span>
               </div>
-              <div className="grid grid-cols-4 gap-2 mt-2">
-                {['Perplexity', 'ChatGPT', 'Gemini', 'Claude'].map((llm) => (
+              <div className="grid grid-cols-3 gap-2 mt-2">
+                {ACTIVE_LLMS.map((llm) => (
                   <div key={llm} className="text-center">
-                    <div className="text-xs text-muted-foreground">{llm}</div>
+                    <div className="text-xs text-muted-foreground">{LLM_DISPLAY_NAMES[llm]}</div>
                     <Zap className="h-4 w-4 mx-auto mt-1 text-orange-400 animate-pulse" />
                   </div>
                 ))}

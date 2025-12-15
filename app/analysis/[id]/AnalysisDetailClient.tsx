@@ -20,6 +20,7 @@ import { BrandMentionCard } from '@/components/analysis/BrandMentionCard'
 import { AllQueryResultsView, type AllQueryResultsViewHandle } from '@/components/analysis/AllQueryResultsView'
 import type { Analysis } from '@/lib/supabase/types'
 import type { LLMType, AnalysisResults, AnalysisSummary, BrandMention, CrossValidation, CrossValidationItem } from '@/types'
+import { isLLMActive } from '@/lib/constants/labels'
 
 interface AnalysisDetailClientProps {
   analysis: Analysis
@@ -543,21 +544,25 @@ export function AnalysisDetailClient({ analysis }: AnalysisDetailClientProps) {
         />
       )}
 
-      {/* 부분 실패 경고 */}
-      {summary.failedLLMs.length > 0 && (
-        <Card className="border-orange-200 bg-orange-50">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 text-orange-700">
-              <XCircle className="h-5 w-5" />
-              <span className="font-medium">일부 LLM 분석 실패</span>
-            </div>
-            <p className="text-sm text-orange-600 mt-1">
-              {summary.failedLLMs.join(', ')}에서 응답을 받지 못했습니다.
-              성공한 {summary.successfulLLMs.length}개 LLM 결과는 위에서 확인할 수 있습니다.
-            </p>
-          </CardContent>
-        </Card>
-      )}
+      {/* 부분 실패 경고 (활성화된 LLM만 표시) */}
+      {(() => {
+        const activeFailedLLMs = summary.failedLLMs.filter(isLLMActive)
+        const activeSuccessfulLLMs = summary.successfulLLMs.filter(isLLMActive)
+        return activeFailedLLMs.length > 0 && (
+          <Card className="border-orange-200 bg-orange-50">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 text-orange-700">
+                <XCircle className="h-5 w-5" />
+                <span className="font-medium">일부 LLM 분석 실패</span>
+              </div>
+              <p className="text-sm text-orange-600 mt-1">
+                {activeFailedLLMs.join(', ')}에서 응답을 받지 못했습니다.
+                성공한 {activeSuccessfulLLMs.length}개 LLM 결과는 위에서 확인할 수 있습니다.
+              </p>
+            </CardContent>
+          </Card>
+        )
+      })()}
 
       {/* AI 최종 검토 의견 */}
       <FinalReview

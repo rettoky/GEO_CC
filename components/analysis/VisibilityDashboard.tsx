@@ -20,7 +20,8 @@ import {
   BookOpen,
   ExternalLink,
 } from 'lucide-react'
-import type { AnalysisSummary, AnalysisResults } from '@/types'
+import type { AnalysisSummary, AnalysisResults, LLMType } from '@/types'
+import { ACTIVE_LLMS } from '@/lib/constants/labels'
 
 interface VisibilityDashboardProps {
   summary: AnalysisSummary
@@ -67,7 +68,7 @@ export function VisibilityDashboard({
     .map(([llm]) => LLM_NAMES[llm as keyof typeof LLM_NAMES])
 
   // 노출률 계산
-  const visibilityRate = (myDomainLLMs.length / 4) * 100
+  const visibilityRate = (myDomainLLMs.length / ACTIVE_LLMS.length) * 100
 
   // 노출 등급
   const getVisibilityGrade = (rate: number) => {
@@ -367,7 +368,7 @@ export function VisibilityDashboard({
                     <AnimatedNumber value={visibilityRate} duration={1200} suffix="%" />
                   </div>
                   <div className="text-sm text-muted-foreground mt-2 font-medium bg-white/50 dark:bg-black/20 rounded-full py-1 px-3 inline-block">
-                    {myDomainLLMs.length}/4 LLM 노출
+                    {myDomainLLMs.length}/{ACTIVE_LLMS.length} LLM 노출
                   </div>
                 </div>
 
@@ -441,8 +442,9 @@ export function VisibilityDashboard({
               {/* LLM별 노출 상세 */}
               <div className="pt-6 border-t border-border/50">
                 <h3 className="text-sm font-semibold mb-4 text-muted-foreground uppercase tracking-wider">LLM별 노출 상세</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {Object.entries(LLM_NAMES).map(([key, name]) => {
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {ACTIVE_LLMS.map((key) => {
+                    const name = LLM_NAMES[key as keyof typeof LLM_NAMES]
                     const isVisible = myDomainLLMs.includes(name)
                     const result = results[key as keyof AnalysisResults]
                     const normalizedMyDomain = myDomain?.toLowerCase().replace(/^www\./, '')
@@ -502,7 +504,7 @@ export function VisibilityDashboard({
                     {visibilityRate > 0 && visibilityRate < 50 && (
                       <li className="flex items-start gap-2">
                         <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" />
-                        {4 - myDomainLLMs.length}개 LLM에서 추가 노출이 필요합니다. 각 LLM의 특성에 맞는 키워드 최적화를 고려해보세요.
+                        {ACTIVE_LLMS.length - myDomainLLMs.length}개 LLM에서 추가 노출이 필요합니다. 각 LLM의 특성에 맞는 키워드 최적화를 고려해보세요.
                       </li>
                     )}
                     {summary.brandMentionCount === 0 && myBrand && (
@@ -545,7 +547,7 @@ export function VisibilityDashboard({
                   <div>
                     <h3 className="font-semibold text-foreground mb-1">GEO (Generative Engine Optimization) 최적화</h3>
                     <p className="text-sm text-muted-foreground">
-                      AI 검색 엔진(ChatGPT, Perplexity, Gemini, Claude)에서 더 자주 인용되고 추천받기 위한 맞춤형 전략입니다.
+                      AI 검색 엔진(ChatGPT, Perplexity, Gemini)에서 더 자주 인용되고 추천받기 위한 맞춤형 전략입니다.
                     </p>
                   </div>
                 </div>
@@ -553,8 +555,8 @@ export function VisibilityDashboard({
 
               {/* LLM별 권장사항 */}
               <Tabs defaultValue={llmRecommendations[0]?.llmKey || 'chatgpt'} className="w-full">
-                <TabsList className="grid w-full grid-cols-4 mb-4">
-                  {llmRecommendations.map((rec) => (
+                <TabsList className="grid w-full grid-cols-3 mb-4">
+                  {llmRecommendations.filter(rec => ACTIVE_LLMS.includes(rec.llmKey as LLMType)).map((rec) => (
                     <TabsTrigger
                       key={rec.llmKey}
                       value={rec.llmKey}
@@ -570,7 +572,7 @@ export function VisibilityDashboard({
                   ))}
                 </TabsList>
 
-                {llmRecommendations.map((rec) => (
+                {llmRecommendations.filter(rec => ACTIVE_LLMS.includes(rec.llmKey as LLMType)).map((rec) => (
                   <TabsContent key={rec.llmKey} value={rec.llmKey} className="space-y-4">
                     {/* LLM 상태 배너 */}
                     <div className={`p-4 rounded-xl border ${
