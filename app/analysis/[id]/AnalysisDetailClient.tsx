@@ -16,6 +16,7 @@ import { VisibilityDashboard } from '@/components/analysis/VisibilityDashboard'
 import { LLMComparisonChart } from '@/components/analysis/LLMComparisonChart'
 import { CompetitorComparison } from '@/components/analysis/CompetitorComparison'
 import { FinalReview } from '@/components/analysis/FinalReview'
+import { ReviewChat } from '@/components/analysis/ReviewChat'
 import { BrandMentionCard } from '@/components/analysis/BrandMentionCard'
 import { AllQueryResultsView, type AllQueryResultsViewHandle } from '@/components/analysis/AllQueryResultsView'
 import type { Analysis } from '@/lib/supabase/types'
@@ -579,6 +580,15 @@ export function AnalysisDetailClient({ analysis }: AnalysisDetailClientProps) {
         myBrand={analysis.my_brand || undefined}
         savedReview={analysis.final_review}
         savedReviewCreatedAt={analysis.final_review_created_at}
+      />
+
+      {/* AI 컨설턴트 대화 (RAG 기반) */}
+      <ReviewChat
+        analysisId={analysis.id}
+        finalReview={analysis.final_review}
+        query={analysis.base_query || analysis.query_text}
+        myDomain={analysis.my_domain || undefined}
+        myBrand={analysis.my_brand || undefined}
       />
     </div>
   )

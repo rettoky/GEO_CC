@@ -74,6 +74,25 @@ export type {
   PDFStatus,
 } from './reports'
 
+// Review Chat types (Gemini File Search RAG)
+export type {
+  ReviewConversation,
+  ReviewMessage,
+  GroundingMetadata,
+  GroundingCitation,
+  ChatInitRequest,
+  ChatInitResponse,
+  ChatMessageRequest,
+  ChatMessageResponse,
+  ChatHistoryRequest,
+  ChatHistoryResponse,
+  ChatMessageUI,
+  ReviewChatState,
+  GeminiFileSearchStore,
+  GeminiGenerateContentRequest,
+  GeminiGenerateContentResponse,
+} from './reviewChat'
+
 
 /**
  * UI 상태 타입
