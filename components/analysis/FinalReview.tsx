@@ -102,9 +102,15 @@ export function FinalReview({
         return
       }
 
+      // 도메인 매칭 (서브도메인 고려)
+      const isDomainMatch = (citedDomain: string, targetDomain: string) => {
+        const cited = citedDomain.toLowerCase()
+        const target = targetDomain.toLowerCase().replace(/^www\./, '')
+        return cited === target || cited.endsWith('.' + target) || target.endsWith('.' + cited)
+      }
       const hasDomainCitation = myDomain
         ? result.citations.some(
-            (c: UnifiedCitation) => c.domain === myDomain.toLowerCase().replace(/^www\./, '')
+            (c: UnifiedCitation) => isDomainMatch(c.domain, myDomain)
           )
         : false
 

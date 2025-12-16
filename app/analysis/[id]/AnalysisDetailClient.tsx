@@ -390,8 +390,13 @@ export function AnalysisDetailClient({ analysis }: AnalysisDetailClientProps) {
       return b.citedBy.length - a.citedBy.length
     })
 
-    // 내 도메인 등급 찾기
-    const myDomainItem = myDomain ? items.find(item => item.domain === myDomain) : null
+    // 내 도메인 등급 찾기 (서브도메인 고려)
+    const isDomainMatch = (domain: string, target: string) => {
+      const d = domain.toLowerCase()
+      const t = target.toLowerCase()
+      return d === t || d.endsWith('.' + t) || t.endsWith('.' + d)
+    }
+    const myDomainItem = myDomain ? items.find(item => isDomainMatch(item.domain, myDomain)) : null
     const myDomainGrade = myDomainItem?.grade || null
 
     return {

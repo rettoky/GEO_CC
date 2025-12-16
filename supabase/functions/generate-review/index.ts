@@ -83,9 +83,9 @@ Deno.serve(async (req) => {
     // Gemini에게 전달할 프롬프트 구성
     const prompt = buildReviewPrompt(body)
 
-    // Gemini API 호출 (gemini-2.5-flash 사용)
+    // Gemini API 호출 (gemini-3-pro-preview 사용 - 최신 최고 성능 모델)
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: {
@@ -102,7 +102,7 @@ Deno.serve(async (req) => {
             },
           ],
           generationConfig: {
-            temperature: 0.7,
+            temperature: 1.0,  // Gemini 3.0은 1.0 권장 (낮추면 성능 저하 가능)
             maxOutputTokens: 8192,  // 한국어 검토 의견이 잘리지 않도록 증가
           },
         }),

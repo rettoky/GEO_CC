@@ -228,15 +228,15 @@ JSON 배열 형식으로만 응답해주세요. 다른 텍스트 없이 배열�
  */
 function filterInvalidAliases(aliases: string[], originalBrand: string): string[] {
   // 제외할 일반적인 그룹명/단어 목록
+  // 주의: 단독 브랜드(라이나, AIA, 캐롯, 처브, 악사 등)는 제외하지 않음
   const excludedWords = new Set([
-    // 한글 그룹명
+    // 한글 그룹명 (다수 계열사가 있는 그룹만)
     '삼성', '현대', '한화', '롯데', '신한', 'lg', '엘지', 'sk', '에스케이',
     'kb', '케이비', 'nh', '농협', 'db', '디비', 'mg', '카카오', '네이버',
-    '교보', '동양', '흥국', '미래에셋', '하나', '우리', '기업', '국민',
-    '메리츠', '처브', '라이나', 'aia', '악사', 'axa', '캐롯',
+    '교보', '동양', '흥국', '미래에셋', '하나', '우리', '기업', '국민', '메리츠',
     // 영문 그룹명
     'samsung', 'hyundai', 'hanwha', 'lotte', 'shinhan', 'kakao', 'naver',
-    'kyobo', 'hana', 'woori', 'meritz', 'chubb', 'lina', 'carrot',
+    'kyobo', 'hana', 'woori', 'meritz',
     // 업종 키워드 단독
     '보험', '생명', '화재', '손해', '손보', '증권', '은행', '캐피탈',
     '자산운용', '투자', '금융', '카드', '저축은행',

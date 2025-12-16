@@ -94,48 +94,106 @@ export function CompetitorComparison({ results, myDomain, crossValidation, secti
   // 정규화된 내 도메인
   const normalizedMyDomain = myDomain?.toLowerCase().replace(/^www\./, '')
 
+  // 도메인 매칭 함수 (서브도메인 고려)
+  // store.meritzfire.com과 meritzfire.com이 같은 사이트로 인식되어야 함
+  const isDomainMatch = (citedDomain: string, myDomain: string): boolean => {
+    if (!myDomain) return false
+    const cited = citedDomain.toLowerCase()
+    const my = myDomain.toLowerCase()
+
+    // 정확히 일치
+    if (cited === my) return true
+
+    // 서브도메인 관계 확인 (한쪽이 다른 쪽으로 끝나는 경우)
+    // store.meritzfire.com → meritzfire.com 매칭
+    // meritzfire.com → store.meritzfire.com 매칭
+    if (cited.endsWith('.' + my) || my.endsWith('.' + cited)) return true
+
+    return false
+  }
+
   // 도메인 통계 배열로 변환 및 정렬
   const domainStats: DomainStats[] = Array.from(domainMap.entries())
     .map(([domain, stats]) => {
       const llmsArray = Array.from(stats.llms)
-      const isMyDomain = normalizedMyDomain ? domain === normalizedMyDomain : false
+      const isMyDomain = normalizedMyDomain ? isDomainMatch(domain, normalizedMyDomain) : false
       const cv = cvMap.get(domain)
       const avgPosition = stats.positions.length > 0
         ? stats.positions.reduce((a, b) => a + b, 0) / stats.positions.length
         : 0
 
-      // 장단점 분석
+      // 장단점 분석 (실제 결과값 기반)
       const strengths: string[] = []
       const weaknesses: string[] = []
 
-      // LLM 커버리지 분석
-      if (llmsArray.length >= 3) {
-        strengths.push('다수의 LLM에서 인용됨')
-      } else if (llmsArray.length === 1) {
-        weaknesses.push('단일 LLM에서만 인용됨')
+      // 인용된 LLM 목록
+      const citedLLMNames = llmsArray.map(llm => LLM_NAMES[llm] || llm)
+
+      // 미인용 LLM 목록
+      const notCitedLLMs = ACTIVE_LLMS.filter(llm => !llmsArray.includes(llm))
+      const notCitedLLMNames = notCitedLLMs.map(llm => LLM_NAMES[llm] || llm)
+
+      // === 강점 분석 ===
+
+      // 1. 인용된 LLM 구체적으로 표시
+      if (llmsArray.length > 0) {
+        if (llmsArray.length >= 3) {
+          strengths.push(`${citedLLMNames.join(', ')} 등 ${llmsArray.length}개 LLM에서 인용`)
+        } else {
+          strengths.push(`${citedLLMNames.join(', ')}에서 인용됨`)
+        }
       }
 
-      // 인용 빈도 분석
+      // 2. 인용 횟수 분석
       if (stats.count >= 5) {
-        strengths.push('높은 인용 빈도')
-      } else if (stats.count === 1) {
-        weaknesses.push('낮은 인용 빈도')
+        strengths.push(`높은 인용 빈도 (${stats.count}회)`)
+      } else if (stats.count >= 3) {
+        strengths.push(`양호한 인용 빈도 (${stats.count}회)`)
       }
 
-      // 인용 위치 분석
-      if (avgPosition <= 2) {
-        strengths.push('상위 순위에 인용됨')
-      } else if (avgPosition > 5) {
-        weaknesses.push('하위 순위에 인용됨')
+      // 3. 인용 순위 분석
+      if (avgPosition > 0 && avgPosition <= 2) {
+        strengths.push(`상위 순위에 노출 (평균 ${avgPosition.toFixed(1)}위)`)
+      } else if (avgPosition > 0 && avgPosition <= 3) {
+        strengths.push(`상위권 노출 (평균 ${avgPosition.toFixed(1)}위)`)
       }
 
-      // 특정 LLM 분석
-      if (llmsArray.includes('perplexity') && llmsArray.includes('chatgpt')) {
-        strengths.push('주요 AI 검색엔진에 노출')
+      // 4. 주요 LLM 노출
+      if (llmsArray.includes('perplexity')) {
+        strengths.push('Perplexity 검색에 노출 (트래픽 유입 가능)')
+      }
+      if (llmsArray.includes('chatgpt')) {
+        strengths.push('ChatGPT에 노출 (높은 사용자층)')
       }
 
-      if (!llmsArray.includes('gemini')) {
-        weaknesses.push('Gemini 미노출')
+      // === 개선 필요 분석 ===
+
+      // 1. 미노출 LLM 구체적으로 표시
+      if (notCitedLLMs.length > 0) {
+        if (notCitedLLMs.length === 1) {
+          weaknesses.push(`${notCitedLLMNames[0]} 미노출 - 해당 LLM 최적화 필요`)
+        } else {
+          weaknesses.push(`${notCitedLLMNames.join(', ')} 미노출`)
+        }
+      }
+
+      // 2. 낮은 인용 빈도
+      if (stats.count === 1) {
+        weaknesses.push('인용 빈도 낮음 (1회) - 콘텐츠 품질 개선 필요')
+      } else if (stats.count === 2) {
+        weaknesses.push('인용 빈도 보통 (2회) - 추가 최적화 권장')
+      }
+
+      // 3. 낮은 인용 순위
+      if (avgPosition > 5) {
+        weaknesses.push(`하위 순위 노출 (평균 ${avgPosition.toFixed(1)}위) - 경쟁력 강화 필요`)
+      } else if (avgPosition > 3 && avgPosition <= 5) {
+        weaknesses.push(`중위권 노출 (평균 ${avgPosition.toFixed(1)}위) - 상위 진입 여지 있음`)
+      }
+
+      // 4. 단일 LLM 의존
+      if (llmsArray.length === 1) {
+        weaknesses.push('단일 LLM 의존 - 다른 LLM 최적화로 노출 확대 필요')
       }
 
       return {
@@ -236,7 +294,7 @@ export function CompetitorComparison({ results, myDomain, crossValidation, secti
                       ))}
                     </ul>
                   ) : (
-                    <p className="text-sm text-green-600">분석 중...</p>
+                    <p className="text-sm text-gray-500">분석된 강점이 없습니다</p>
                   )}
                   <div className="mt-3 text-xs text-green-600">
                     {myDomainStats.llms.map(llm => LLM_NAMES[llm]).join(', ')}에서 인용
