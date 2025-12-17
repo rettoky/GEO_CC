@@ -263,11 +263,6 @@ export function ReviewChat({
     }
   }
 
-  // finalReview가 없으면 렌더링하지 않음
-  if (!finalReview) {
-    return null
-  }
-
   return (
     <Card className="border-none shadow-lg bg-gradient-to-br from-blue-50 via-white to-cyan-50 dark:from-blue-950/30 dark:via-gray-900 dark:to-cyan-950/30 overflow-hidden mt-6">
       <CardHeader className="border-b border-border/50 pb-4">
@@ -279,33 +274,40 @@ export function ReviewChat({
               RAG 기반
             </Badge>
           </CardTitle>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="gap-2"
-          >
-            {isExpanded ? (
-              <>
-                <ChevronUp className="h-4 w-4" />
-                접기
-              </>
-            ) : (
-              <>
-                <ChevronDown className="h-4 w-4" />
-                펼치기
-              </>
-            )}
-          </Button>
+          {finalReview && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="gap-2"
+            >
+              {isExpanded ? (
+                <>
+                  <ChevronUp className="h-4 w-4" />
+                  접기
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="h-4 w-4" />
+                  펼치기
+                </>
+              )}
+            </Button>
+          )}
         </div>
-        {!isExpanded && (
+        {!isExpanded && finalReview && (
           <p className="text-sm text-muted-foreground mt-2">
             분석 데이터를 기반으로 GEO 개선 전략에 대해 AI와 대화해보세요.
           </p>
         )}
+        {!finalReview && (
+          <p className="text-sm text-muted-foreground mt-2">
+            먼저 위의 &quot;검토 의견 생성&quot; 버튼을 클릭하여 AI 검토 의견을 생성해주세요.
+          </p>
+        )}
       </CardHeader>
 
-      {isExpanded && (
+      {isExpanded && finalReview && (
         <CardContent className="pt-4">
           {/* 로딩 상태 */}
           {state.isLoading && (
