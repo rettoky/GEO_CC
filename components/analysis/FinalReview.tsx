@@ -27,6 +27,7 @@ interface FinalReviewProps {
   myBrand?: string
   savedReview?: string | null  // 기존 저장된 리뷰
   savedReviewCreatedAt?: string | null  // 저장 시간
+  onReviewGenerated?: (review: string) => void  // 검토 의견 생성 시 콜백
 }
 
 type LLMKey = 'perplexity' | 'chatgpt' | 'gemini' | 'claude'
@@ -43,6 +44,7 @@ export function FinalReview({
   myBrand,
   savedReview,
   savedReviewCreatedAt,
+  onReviewGenerated,
 }: FinalReviewProps) {
   const [review, setReview] = useState<string | null>(savedReview || null)
   const [isSaved, setIsSaved] = useState(!!savedReview)
@@ -187,6 +189,8 @@ export function FinalReview({
       if (analysisId) {
         setIsSaved(true)
       }
+      // 부모 컴포넌트에 알림
+      onReviewGenerated?.(data.review)
     } catch (err) {
       setError(err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.')
     } finally {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef } from 'react'
+import { useRef, useState, useCallback } from 'react'
 import Link from 'next/link'
 import {
   ArrowLeft,
@@ -40,6 +40,16 @@ interface QueryAnalysisResult {
 export function AnalysisDetailClient({ analysis }: AnalysisDetailClientProps) {
   // AllQueryResultsView ref
   const allQueryResultsRef = useRef<AllQueryResultsViewHandle>(null)
+
+  // AI 검토 의견 상태 관리 (FinalReview와 ReviewChat 간 동기화)
+  const [currentFinalReview, setCurrentFinalReview] = useState<string | null>(
+    analysis.final_review || null
+  )
+
+  // 검토 의견 생성 완료 콜백
+  const handleReviewGenerated = useCallback((review: string) => {
+    setCurrentFinalReview(review)
+  }, [])
 
   // 배치 분석 데이터 파싱
   const intermediateResults = analysis.intermediate_results as {
@@ -580,12 +590,13 @@ export function AnalysisDetailClient({ analysis }: AnalysisDetailClientProps) {
         myBrand={analysis.my_brand || undefined}
         savedReview={analysis.final_review}
         savedReviewCreatedAt={analysis.final_review_created_at}
+        onReviewGenerated={handleReviewGenerated}
       />
 
       {/* AI 컨설턴트 대화 (RAG 기반) */}
       <ReviewChat
         analysisId={analysis.id}
-        finalReview={analysis.final_review}
+        finalReview={currentFinalReview}
         query={analysis.base_query || analysis.query_text}
         myDomain={analysis.my_domain || undefined}
         myBrand={analysis.my_brand || undefined}
