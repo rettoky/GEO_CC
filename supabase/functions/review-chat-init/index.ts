@@ -138,35 +138,88 @@ Deno.serve(async (req) => {
     const analysisDataForRAG = buildAnalysisDataForRAG(analysis)
     const jsonContent = JSON.stringify(analysisDataForRAG, null, 2)
 
-    // 5. 파일 업로드 (inline data 방식)
-    console.log('[DEBUG] Uploading analysis data to store...')
-    const uploadResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/${storeId}:importFiles?key=${apiKey}`,
+    // 5-1. Files API로 먼저 파일 업로드
+    console.log('[DEBUG] Uploading file to Files API...')
+    const boundary = '----WebKitFormBoundary' + Math.random().toString(36).substring(2)
+    const metadata = JSON.stringify({
+      file: {
+        displayName: `analysis-${analysisId.substring(0, 8)}.json`,
+        mimeType: 'application/json',
+      }
+    })
+
+    // Multipart 요청 생성
+    const encoder = new TextEncoder()
+    const jsonBytes = encoder.encode(jsonContent)
+
+    const bodyParts = [
+      `--${boundary}\r\n`,
+      'Content-Type: application/json; charset=utf-8\r\n\r\n',
+      metadata,
+      `\r\n--${boundary}\r\n`,
+      'Content-Type: application/json\r\n\r\n',
+    ]
+
+    const textPart = encoder.encode(bodyParts.join(''))
+    const endPart = encoder.encode(`\r\n--${boundary}--\r\n`)
+
+    const bodyArray = new Uint8Array(textPart.length + jsonBytes.length + endPart.length)
+    bodyArray.set(textPart, 0)
+    bodyArray.set(jsonBytes, textPart.length)
+    bodyArray.set(endPart, textPart.length + jsonBytes.length)
+
+    const filesUploadResponse = await fetch(
+      `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          inlinePayloads: [{
-            mimeType: 'application/json',
-            displayName: 'analysis-data.json',
-            content: btoa(unescape(encodeURIComponent(jsonContent))),  // Base64 인코딩
-          }],
-        }),
+        headers: {
+          'Content-Type': `multipart/related; boundary=${boundary}`,
+        },
+        body: bodyArray,
       }
     )
 
     let fileId: string | null = null
-    if (!uploadResponse.ok) {
-      const errorText = await uploadResponse.text()
-      console.error('[ERROR] Failed to upload file:', errorText)
-      // 파일 업로드 실패해도 계속 진행 (store는 생성됨)
+    let geminiFileName: string | null = null
+
+    if (!filesUploadResponse.ok) {
+      const errorText = await filesUploadResponse.text()
+      console.error('[ERROR] Failed to upload to Files API:', errorText)
     } else {
-      const uploadData = await uploadResponse.json()
-      console.log('[DEBUG] File uploaded:', uploadData)
-      // operation에서 fileId 추출 시도
-      if (uploadData.name) {
-        fileId = uploadData.name
+      const filesData = await filesUploadResponse.json()
+      console.log('[DEBUG] Files API response:', JSON.stringify(filesData))
+      geminiFileName = filesData.file?.name  // files/{id} 형식
+      fileId = geminiFileName
+    }
+
+    // 5-2. FileSearchStore에 파일 import
+    if (geminiFileName) {
+      console.log('[DEBUG] Importing file to FileSearchStore:', geminiFileName)
+      const importResponse = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/${storeId}:importFile?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fileName: geminiFileName,
+          }),
+        }
+      )
+
+      if (!importResponse.ok) {
+        const errorText = await importResponse.text()
+        console.error('[ERROR] Failed to import file to store:', errorText)
+      } else {
+        const importData = await importResponse.json()
+        console.log('[DEBUG] File imported to store:', JSON.stringify(importData))
+
+        // 인덱싱이 완료될 때까지 잠시 대기 (최대 10초)
+        if (importData.name) {
+          await waitForOperation(importData.name, apiKey)
+        }
       }
+    } else {
+      console.error('[ERROR] No file name from Files API, cannot import to store')
     }
 
     // 6. DB에 conversation 저장
@@ -342,4 +395,38 @@ async function cleanupStore(storeId: string, apiKey: string): Promise<void> {
   } catch (error) {
     console.error('[ERROR] Failed to cleanup store:', error)
   }
+}
+
+/**
+ * Long-running operation 완료 대기 (최대 15초)
+ */
+async function waitForOperation(operationName: string, apiKey: string): Promise<boolean> {
+  const maxAttempts = 15
+  const delayMs = 1000
+
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/${operationName}?key=${apiKey}`
+      )
+
+      if (response.ok) {
+        const data = await response.json()
+        console.log(`[DEBUG] Operation status (attempt ${i + 1}):`, JSON.stringify(data))
+
+        if (data.done === true) {
+          console.log('[DEBUG] Operation completed successfully')
+          return true
+        }
+      }
+    } catch (error) {
+      console.error('[ERROR] Failed to check operation status:', error)
+    }
+
+    // 대기
+    await new Promise(resolve => setTimeout(resolve, delayMs))
+  }
+
+  console.log('[DEBUG] Operation not completed within timeout, proceeding anyway')
+  return false
 }

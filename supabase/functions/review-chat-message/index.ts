@@ -139,23 +139,29 @@ Deno.serve(async (req) => {
     const contents = buildContents(recentMessages || [], message)
 
     console.log('[DEBUG] Calling Gemini with file_search...')
+    console.log('[DEBUG] Store ID:', conversation.gemini_store_id)
+    console.log('[DEBUG] File ID:', conversation.gemini_file_id)
+
+    const requestBody = {
+      contents,
+      tools: [{
+        file_search: {
+          file_search_store_names: [conversation.gemini_store_id],
+        },
+      }],
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 4096,
+      },
+    }
+    console.log('[DEBUG] Request body tools:', JSON.stringify(requestBody.tools))
+
     const geminiResponse = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents,
-          tools: [{
-            file_search: {
-              file_search_store_names: [conversation.gemini_store_id],
-            },
-          }],
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 4096,
-          },
-        }),
+        body: JSON.stringify(requestBody),
       }
     )
 
@@ -173,10 +179,20 @@ Deno.serve(async (req) => {
 
     const geminiData = await geminiResponse.json()
     console.log('[DEBUG] Gemini response received')
+    console.log('[DEBUG] Full Gemini response:', JSON.stringify(geminiData).substring(0, 2000))
 
     // 4. 응답 추출
     const assistantContent = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || ''
     const groundingMetadata = geminiData.candidates?.[0]?.groundingMetadata || {}
+
+    // File search 결과 로깅
+    console.log('[DEBUG] Grounding metadata:', JSON.stringify(groundingMetadata))
+    if (groundingMetadata.groundingChunks) {
+      console.log('[DEBUG] Grounding chunks count:', groundingMetadata.groundingChunks.length)
+    }
+    if (groundingMetadata.retrievalMetadata) {
+      console.log('[DEBUG] Retrieval metadata:', JSON.stringify(groundingMetadata.retrievalMetadata))
+    }
 
     if (!assistantContent) {
       return new Response(
