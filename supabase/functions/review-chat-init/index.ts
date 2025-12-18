@@ -137,59 +137,74 @@ Deno.serve(async (req) => {
     // 4. 분석 데이터를 JSON으로 변환
     const analysisDataForRAG = buildAnalysisDataForRAG(analysis)
     const jsonContent = JSON.stringify(analysisDataForRAG, null, 2)
-
-    // 5-1. Files API로 먼저 파일 업로드
-    console.log('[DEBUG] Uploading file to Files API...')
-    const boundary = '----WebKitFormBoundary' + Math.random().toString(36).substring(2)
-    const metadata = JSON.stringify({
-      file: {
-        displayName: `analysis-${analysisId.substring(0, 8)}.json`,
-        mimeType: 'application/json',
-      }
-    })
-
-    // Multipart 요청 생성
     const encoder = new TextEncoder()
     const jsonBytes = encoder.encode(jsonContent)
+    const numBytes = jsonBytes.length
 
-    const bodyParts = [
-      `--${boundary}\r\n`,
-      'Content-Type: application/json; charset=utf-8\r\n\r\n',
-      metadata,
-      `\r\n--${boundary}\r\n`,
-      'Content-Type: application/json\r\n\r\n',
-    ]
+    console.log('[DEBUG] JSON content size:', numBytes, 'bytes')
 
-    const textPart = encoder.encode(bodyParts.join(''))
-    const endPart = encoder.encode(`\r\n--${boundary}--\r\n`)
-
-    const bodyArray = new Uint8Array(textPart.length + jsonBytes.length + endPart.length)
-    bodyArray.set(textPart, 0)
-    bodyArray.set(jsonBytes, textPart.length)
-    bodyArray.set(endPart, textPart.length + jsonBytes.length)
-
-    const filesUploadResponse = await fetch(
+    // 5-1. Resumable upload 시작
+    console.log('[DEBUG] Starting resumable upload to Files API...')
+    const startUploadResponse = await fetch(
       `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`,
       {
         method: 'POST',
         headers: {
-          'Content-Type': `multipart/related; boundary=${boundary}`,
+          'X-Goog-Upload-Protocol': 'resumable',
+          'X-Goog-Upload-Command': 'start',
+          'X-Goog-Upload-Header-Content-Length': String(numBytes),
+          'X-Goog-Upload-Header-Content-Type': 'application/json',
+          'Content-Type': 'application/json',
         },
-        body: bodyArray,
+        body: JSON.stringify({
+          file: {
+            display_name: `analysis-${analysisId.substring(0, 8)}.json`,
+          }
+        }),
       }
     )
 
     let fileId: string | null = null
     let geminiFileName: string | null = null
 
-    if (!filesUploadResponse.ok) {
-      const errorText = await filesUploadResponse.text()
-      console.error('[ERROR] Failed to upload to Files API:', errorText)
+    if (!startUploadResponse.ok) {
+      const errorText = await startUploadResponse.text()
+      console.error('[ERROR] Failed to start resumable upload:', errorText)
     } else {
-      const filesData = await filesUploadResponse.json()
-      console.log('[DEBUG] Files API response:', JSON.stringify(filesData))
-      geminiFileName = filesData.file?.name  // files/{id} 형식
-      fileId = geminiFileName
+      // Get upload URL from response header
+      const uploadUrl = startUploadResponse.headers.get('X-Goog-Upload-URL')
+      console.log('[DEBUG] Got upload URL:', uploadUrl ? 'yes' : 'no')
+
+      if (uploadUrl) {
+        // 5-2. 실제 파일 데이터 업로드
+        console.log('[DEBUG] Uploading file data...')
+        const uploadDataResponse = await fetch(uploadUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Length': String(numBytes),
+            'X-Goog-Upload-Offset': '0',
+            'X-Goog-Upload-Command': 'upload, finalize',
+          },
+          body: jsonBytes,
+        })
+
+        if (!uploadDataResponse.ok) {
+          const errorText = await uploadDataResponse.text()
+          console.error('[ERROR] Failed to upload file data:', errorText)
+        } else {
+          const filesData = await uploadDataResponse.json()
+          console.log('[DEBUG] Files API response:', JSON.stringify(filesData))
+          geminiFileName = filesData.file?.name  // files/{id} 형식
+          fileId = geminiFileName
+        }
+      } else {
+        console.error('[ERROR] No upload URL in response headers')
+        // 응답 헤더 디버깅
+        console.log('[DEBUG] Response headers:')
+        startUploadResponse.headers.forEach((value, key) => {
+          console.log(`  ${key}: ${value}`)
+        })
+      }
     }
 
     // 5-2. FileSearchStore에 파일 import
