@@ -269,7 +269,7 @@ export function ReviewChat({
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-lg">
             <MessageSquare className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-            AI 컨설턴트와 대화하기
+            현재 분석 결과에 대해서 AI 컨설턴트와 대화하기
             <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
               RAG 기반
             </Badge>
