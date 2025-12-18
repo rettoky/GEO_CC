@@ -57,7 +57,7 @@ export async function callOpenAI(query: string): Promise<LLMResult> {
         input: query,
         tools: [{
           type: 'web_search_preview',
-          search_context_size: 'low',  // 비용 절감: medium(기본) → low
+          search_context_size: 'medium',  // 인용 품질 개선: low → medium (기본값)
         }],
       }),
     })
