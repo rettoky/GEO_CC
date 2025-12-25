@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import { Inter, Noto_Sans_KR } from "next/font/google";
 import "./globals.css";
-import { Header } from "@/components/layout/Header";
 import { Toaster } from "@/components/ui/toaster";
 import { AnalysisFormProvider } from "@/contexts/AnalysisFormContext";
+import { DashboardProvider } from "@/contexts/DashboardContext";
+import { Sidebar } from "@/components/layout/Sidebar";
+import { MainPanel } from "@/components/layout/MainPanel";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -34,11 +36,13 @@ export default function RootLayout({
         className={`${inter.variable} ${notoSansKr.variable} font-sans antialiased bg-background text-foreground`}
       >
         <AnalysisFormProvider>
-          <Header />
-          <main className="container mx-auto py-8 px-4 md:px-6">
-            {children}
-          </main>
-          <Toaster />
+          <DashboardProvider>
+            <div className="flex h-screen overflow-hidden">
+              <Sidebar />
+              <MainPanel />
+            </div>
+            <Toaster />
+          </DashboardProvider>
         </AnalysisFormProvider>
       </body>
     </html>
