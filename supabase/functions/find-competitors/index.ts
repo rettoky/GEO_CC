@@ -79,29 +79,31 @@ Deno.serve(async (req) => {
         : `도메인: "${domain}"`
 
     // Gemini 2.0 Flash + Google Search 호출
-    const prompt = `당신은 시장 조사 전문가입니다. 다음 정보를 기반으로 경쟁사 브랜드를 찾아주세요.
+    const prompt = `당신은 한국 보험/금융 시장 조사 전문가입니다. 다음 정보를 기반으로 경쟁사 브랜드를 찾아주세요.
 
 대상 정보: ${targetInfo}
 ${industryContext}
 
 다음 작업을 수행하세요:
 
-1. 웹 검색을 통해 해당 브랜드/도메인이 속한 업종을 파악하세요.
-2. 같은 업종에서 경쟁 관계에 있는 주요 브랜드 5-10개를 찾으세요.
-3. 각 경쟁사 브랜드에 대해 다양한 별칭(한글명, 영문명, 줄임말, 정식명칭)을 제공하세요.
+1. 검색어 "${query || '없음'}"을 분석하여 업종을 정확히 파악하세요 (예: 암보험→생명보험, 자동차보험→손해보험).
+2. 웹 검색을 통해 해당 업종의 주요 경쟁 브랜드 7-12개를 찾으세요.
+3. 각 경쟁사 브랜드의 별칭을 제공하세요.
 
 중요:
-- 실제로 해당 업종에서 경쟁하는 브랜드만 포함하세요.
-- 대상 브랜드(${brand || domain})는 경쟁사 목록에서 제외하세요.
-- 각 브랜드별로 최소 2개 이상의 별칭을 제공하세요.
-- 가장 유명하고 점유율이 높은 경쟁사를 우선으로 포함하세요.
+- 검색어 "${query || '없음'}"의 업종을 최우선으로 반영하세요 (도메인보다 우선).
+- 대상 브랜드(${brand || domain})와 그 계열사는 제외하세요.
+- 외국계 보험사도 반드시 포함하세요 (AIA, 라이나, 처브, 악사, 메트라이프, 푸르덴셜 등).
+- 별칭이 1개뿐인 단독 브랜드(예: AIA, 라이나)도 반드시 포함하세요.
+- 점유율 상위 브랜드를 우선으로, 외국계와 국내사 균형있게 포함하세요.
 
 다음 JSON 형식으로만 응답해주세요. 다른 텍스트 없이 JSON만 반환:
 {
-  "industry": "업종명",
+  "industry": "정확한 업종명 (예: 생명보험, 손해보험, 은행)",
   "competitors": [
-    {"name": "브랜드명1", "aliases": ["별칭1", "별칭2", "영문명"]},
-    {"name": "브랜드명2", "aliases": ["별칭1", "별칭2", "영문명"]}
+    {"name": "브랜드명", "aliases": ["별칭1", "별칭2"]},
+    {"name": "AIA", "aliases": ["AIA", "AIA생명", "에이아이에이"]},
+    {"name": "라이나생명", "aliases": ["라이나", "라이나생명", "LINA"]}
   ]
 }`
 
@@ -218,13 +220,27 @@ ${industryContext}
  * 단독 그룹명, 업종 키워드 등을 제외
  */
 function filterInvalidAliases(aliases: string[], originalBrand: string): string[] {
+  // 보험업계 단독 브랜드 (필터링에서 예외 처리)
+  // 이 브랜드들은 짧은 영문이거나 단독 명칭이어도 유효함
+  const standaloneBrands = new Set([
+    // 영문 단독 브랜드 (3자 포함)
+    'aia', 'axa', 'aig', 'ing', 'bnp', 'bhf', 'pca', 'act', 'bnk',
+    'chubb', 'cigna', 'zurich', 'allianz', 'aviva', 'aegon', 'generali',
+    'metlife', 'prudential', 'manulife', 'aflac',
+    // 한글 단독 브랜드 (외국계/독립 보험사)
+    '라이나', '처브', '악사', '취리히', '알리안츠', '아비바', '제네랄리',
+    '메트라이프', '푸르덴셜', '매뉴라이프', '애플락', '에이플락', '시그나',
+    '캐롯', '카카오페이', '토스', '하나손보', '더케이',
+    // 국내 독립 브랜드
+    '흥국', '동양', '농협', '우체국',
+  ])
+
   // 제외할 일반적인 그룹명/단어 목록
-  // 주의: 단독 브랜드(라이나, AIA, 캐롯, 처브, 악사 등)는 제외하지 않음
   const excludedWords = new Set([
-    // 한글 그룹명 (다수 계열사가 있는 그룹만)
+    // 한글 대기업 그룹명 (다수 계열사가 있는 그룹만)
     '삼성', '현대', '한화', '롯데', '신한', 'lg', '엘지', 'sk', '에스케이',
-    'kb', '케이비', 'nh', '농협', 'db', '디비', 'mg', '카카오', '네이버',
-    '교보', '동양', '흥국', '미래에셋', '하나', '우리', '기업', '국민', '메리츠',
+    'kb', '케이비', 'db', '디비', '카카오', '네이버', '교보',
+    '미래에셋', '하나', '우리', '기업', '국민', '메리츠',
     // 영문 그룹명
     'samsung', 'hyundai', 'hanwha', 'lotte', 'shinhan', 'kakao', 'naver',
     'kyobo', 'hana', 'woori', 'meritz',
@@ -241,14 +257,20 @@ function filterInvalidAliases(aliases: string[], originalBrand: string): string[
   return aliases.filter(alias => {
     const lowerAlias = alias.toLowerCase().trim()
 
-    // 1. 너무 짧은 별칭 제외 (한글 2자, 영문 4자 미만)
+    // 0. 단독 브랜드 예외 처리 - 먼저 체크하여 바로 통과
+    if (standaloneBrands.has(lowerAlias)) {
+      return true
+    }
+
+    // 1. 너무 짧은 별칭 제외 (한글 2자, 영문 3자 미만)
     const koreanOnly = alias.replace(/[a-zA-Z0-9\s]/g, '')
     const englishOnly = alias.replace(/[^a-zA-Z]/g, '')
 
     if (koreanOnly.length > 0 && koreanOnly.length < 2) {
       return false
     }
-    if (koreanOnly.length === 0 && englishOnly.length < 4) {
+    // 영문 최소 길이를 4자 → 3자로 완화 (AIA, AXA 등 허용)
+    if (koreanOnly.length === 0 && englishOnly.length < 3) {
       return false
     }
 
