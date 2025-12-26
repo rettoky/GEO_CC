@@ -354,90 +354,113 @@ export function VisibilityDashboard({
 
             {/* 탭 1: 내 도메인 경쟁력분석 */}
             <TabsContent value="analysis" className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* 노출률 */}
-                <div className={`relative overflow-hidden text-center p-6 rounded-2xl border ${visibilityGrade.borderColor} ${visibilityGrade.bgColor} transition-all duration-300 hover:shadow-lg opacity-0 animate-fade-in-scale`} style={{ animationDelay: '0.1s' }}>
-                  <div className="absolute top-0 right-0 p-4 opacity-10">
-                    <GradeIcon className="h-24 w-24" />
-                  </div>
-                  <div className={`text-6xl font-black ${visibilityGrade.color} mb-2 tracking-tighter`}>
-                    {visibilityGrade.grade}
-                  </div>
-                  <div className="text-sm font-medium text-muted-foreground mb-1 uppercase tracking-wider">노출 등급</div>
-                  <div className={`text-3xl font-bold ${visibilityGrade.color}`}>
-                    <AnimatedNumber value={visibilityRate} duration={1200} suffix="%" />
-                  </div>
-                  <div className="text-sm text-muted-foreground mt-2 font-medium bg-white/50 dark:bg-black/20 rounded-full py-1 px-3 inline-block">
-                    {myDomainLLMs.length}/{ACTIVE_LLMS.length} LLM 노출
-                  </div>
-                </div>
+              {(() => {
+                // 도메인 인용 점유율 계산
+                const totalCitations = summary.totalCitations || 0
+                const myDomainCitationShare = totalCitations > 0
+                  ? Math.round((summary.myDomainCitationCount / totalCitations) * 100)
+                  : 0
 
-                {/* 도메인 인용 수 - 클릭 시 전체 쿼리 분석결과로 이동 */}
-                <button
-                  onClick={() => summary.myDomainCitationCount > 0 && onDomainCitationClick?.()}
-                  disabled={summary.myDomainCitationCount === 0}
-                  className={`group text-center p-6 rounded-2xl bg-card border shadow-sm transition-all duration-300 opacity-0 animate-fade-in-scale w-full ${
-                    summary.myDomainCitationCount > 0
-                      ? 'cursor-pointer hover:shadow-md hover:border-blue-300 border-border'
-                      : 'cursor-default border-border opacity-70'
-                  }`}
-                  style={{ animationDelay: '0.2s' }}
-                >
-                  <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-full w-16 h-16 mx-auto flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                    <Target className="h-8 w-8 text-blue-600 dark:text-blue-400" />
-                  </div>
-                  <div className="text-4xl font-bold text-foreground mb-2">
-                    <AnimatedNumber value={summary.myDomainCitationCount} duration={1000} delay={200} />
-                  </div>
-                  <div className="text-sm font-medium text-muted-foreground">
-                    내 도메인 인용 수
-                  </div>
-                  {myDomain && (
-                    <div className="text-xs text-blue-600 dark:text-blue-400 mt-3 font-mono bg-blue-50 dark:bg-blue-900/20 py-1 px-2 rounded-md inline-block">
-                      {myDomain}
-                    </div>
-                  )}
-                  {summary.myDomainCitationCount > 0 && (
-                    <div className="mt-3 flex items-center justify-center gap-1 text-xs text-blue-600 dark:text-blue-400">
-                      <ExternalLink className="h-3 w-3" />
-                      <span>클릭하여 상세 보기</span>
-                    </div>
-                  )}
-                </button>
+                // 브랜드 언급 점유율 계산
+                const totalBrandMentions = summary.brandMentionAnalysis?.totalBrandMentions || 0
+                const myBrandMentionCount = summary.brandMentionAnalysis?.myBrand?.mentionCount || 0
+                const myBrandMentionShare = totalBrandMentions > 0
+                  ? Math.round((myBrandMentionCount / totalBrandMentions) * 100)
+                  : 0
 
-                {/* 브랜드 언급 수 - 클릭 시 전체 쿼리 분석결과로 이동 */}
-                <button
-                  onClick={() => summary.brandMentionCount > 0 && onBrandMentionClick?.()}
-                  disabled={summary.brandMentionCount === 0}
-                  className={`group text-center p-6 rounded-2xl bg-card border shadow-sm transition-all duration-300 opacity-0 animate-fade-in-scale w-full ${
-                    summary.brandMentionCount > 0
-                      ? 'cursor-pointer hover:shadow-md hover:border-purple-300 border-border'
-                      : 'cursor-default border-border opacity-70'
-                  }`}
-                  style={{ animationDelay: '0.3s' }}
-                >
-                  <div className="mb-4 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-full w-16 h-16 mx-auto flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                    <TrendingUp className="h-8 w-8 text-purple-600 dark:text-purple-400" />
+                // 점유율 등급 판정
+                const getShareGrade = (share: number) => {
+                  if (share >= 50) return { grade: 'A', color: 'text-green-600', bgColor: 'bg-green-50', borderColor: 'border-green-200' }
+                  if (share >= 30) return { grade: 'B', color: 'text-blue-600', bgColor: 'bg-blue-50', borderColor: 'border-blue-200' }
+                  if (share >= 10) return { grade: 'C', color: 'text-yellow-600', bgColor: 'bg-yellow-50', borderColor: 'border-yellow-200' }
+                  return { grade: 'D', color: 'text-red-600', bgColor: 'bg-red-50', borderColor: 'border-red-200' }
+                }
+
+                const domainShareGrade = getShareGrade(myDomainCitationShare)
+                const brandShareGrade = getShareGrade(myBrandMentionShare)
+
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* 도메인 인용 점유율 */}
+                    <button
+                      onClick={() => summary.myDomainCitationCount > 0 && onDomainCitationClick?.()}
+                      disabled={summary.myDomainCitationCount === 0}
+                      className={`group relative overflow-hidden text-center p-6 rounded-2xl border transition-all duration-300 hover:shadow-lg opacity-0 animate-fade-in-scale w-full ${
+                        summary.myDomainCitationCount > 0
+                          ? `cursor-pointer ${domainShareGrade.borderColor} ${domainShareGrade.bgColor}`
+                          : 'cursor-default border-border bg-muted/30 opacity-70'
+                      }`}
+                      style={{ animationDelay: '0.1s' }}
+                    >
+                      <div className="absolute top-0 right-0 p-4 opacity-10">
+                        <Target className="h-24 w-24" />
+                      </div>
+                      <div className="flex items-center justify-center gap-2 mb-3">
+                        <Globe className="h-5 w-5 text-blue-600" />
+                        <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">도메인 인용 점유율</span>
+                      </div>
+                      <div className={`text-5xl font-black mb-2 tracking-tighter ${
+                        summary.myDomainCitationCount > 0 ? domainShareGrade.color : 'text-muted-foreground'
+                      }`}>
+                        <AnimatedNumber value={myDomainCitationShare} duration={1200} suffix="%" />
+                      </div>
+                      <div className="text-sm text-muted-foreground mb-3 font-medium bg-white/50 dark:bg-black/20 rounded-full py-1.5 px-4 inline-block">
+                        내 도메인 {summary.myDomainCitationCount}회 / 전체 {totalCitations}회
+                      </div>
+                      {myDomain && (
+                        <div className="text-xs text-blue-600 dark:text-blue-400 font-mono bg-blue-100/50 dark:bg-blue-900/20 py-1 px-2 rounded-md inline-block">
+                          {myDomain}
+                        </div>
+                      )}
+                      {summary.myDomainCitationCount > 0 && (
+                        <div className="mt-3 flex items-center justify-center gap-1 text-xs text-blue-600 dark:text-blue-400">
+                          <ExternalLink className="h-3 w-3" />
+                          <span>클릭하여 상세 보기</span>
+                        </div>
+                      )}
+                    </button>
+
+                    {/* 브랜드 언급 점유율 */}
+                    <button
+                      onClick={() => summary.brandMentionCount > 0 && onBrandMentionClick?.()}
+                      disabled={summary.brandMentionCount === 0}
+                      className={`group relative overflow-hidden text-center p-6 rounded-2xl border transition-all duration-300 hover:shadow-lg opacity-0 animate-fade-in-scale w-full ${
+                        myBrandMentionCount > 0
+                          ? `cursor-pointer ${brandShareGrade.borderColor} ${brandShareGrade.bgColor}`
+                          : 'cursor-default border-border bg-muted/30 opacity-70'
+                      }`}
+                      style={{ animationDelay: '0.2s' }}
+                    >
+                      <div className="absolute top-0 right-0 p-4 opacity-10">
+                        <TrendingUp className="h-24 w-24" />
+                      </div>
+                      <div className="flex items-center justify-center gap-2 mb-3">
+                        <TrendingUp className="h-5 w-5 text-purple-600" />
+                        <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">브랜드 언급 점유율</span>
+                      </div>
+                      <div className={`text-5xl font-black mb-2 tracking-tighter ${
+                        myBrandMentionCount > 0 ? brandShareGrade.color : 'text-muted-foreground'
+                      }`}>
+                        <AnimatedNumber value={myBrandMentionShare} duration={1200} suffix="%" />
+                      </div>
+                      <div className="text-sm text-muted-foreground mb-3 font-medium bg-white/50 dark:bg-black/20 rounded-full py-1.5 px-4 inline-block">
+                        내 브랜드 {myBrandMentionCount}회 / 전체 {totalBrandMentions}회
+                      </div>
+                      {myBrand && (
+                        <div className="text-xs text-purple-600 dark:text-purple-400 font-semibold bg-purple-100/50 dark:bg-purple-900/20 py-1 px-2 rounded-md inline-block">
+                          &quot;{myBrand}&quot;
+                        </div>
+                      )}
+                      {myBrandMentionCount > 0 && (
+                        <div className="mt-3 flex items-center justify-center gap-1 text-xs text-purple-600 dark:text-purple-400">
+                          <ExternalLink className="h-3 w-3" />
+                          <span>클릭하여 상세 보기</span>
+                        </div>
+                      )}
+                    </button>
                   </div>
-                  <div className="text-4xl font-bold text-foreground mb-2">
-                    <AnimatedNumber value={summary.brandMentionCount} duration={1000} delay={300} />
-                  </div>
-                  <div className="text-sm font-medium text-muted-foreground">
-                    브랜드 언급 수
-                  </div>
-                  {myBrand && (
-                    <div className="text-xs text-purple-600 dark:text-purple-400 mt-3 font-semibold bg-purple-50 dark:bg-purple-900/20 py-1 px-2 rounded-md inline-block">
-                      &quot;{myBrand}&quot;
-                    </div>
-                  )}
-                  {summary.brandMentionCount > 0 && (
-                    <div className="mt-3 flex items-center justify-center gap-1 text-xs text-purple-600 dark:text-purple-400">
-                      <ExternalLink className="h-3 w-3" />
-                      <span>클릭하여 상세 보기</span>
-                    </div>
-                  )}
-                </button>
-              </div>
+                )
+              })()}
 
               {/* LLM별 노출 상세 */}
               <div className="pt-6 border-t border-border/50">
