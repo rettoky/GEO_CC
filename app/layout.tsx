@@ -4,6 +4,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { AnalysisFormProvider } from "@/contexts/AnalysisFormContext";
 import { DashboardProvider } from "@/contexts/DashboardContext";
+import { TrackingSectionProvider } from "@/contexts/TrackingSectionContext";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { MainPanel } from "@/components/layout/MainPanel";
 
@@ -37,11 +38,13 @@ export default function RootLayout({
       >
         <AnalysisFormProvider>
           <DashboardProvider>
-            <div className="flex h-screen overflow-hidden">
-              <Sidebar />
-              <MainPanel />
-            </div>
-            <Toaster />
+            <TrackingSectionProvider>
+              <div className="flex h-screen overflow-hidden">
+                <Sidebar />
+                <MainPanel />
+              </div>
+              <Toaster />
+            </TrackingSectionProvider>
           </DashboardProvider>
         </AnalysisFormProvider>
       </body>

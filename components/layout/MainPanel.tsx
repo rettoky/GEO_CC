@@ -6,7 +6,7 @@ import { DashboardTabs } from '@/components/dashboard/DashboardTabs'
 import { MobileNav } from './MobileNav'
 
 export function MainPanel() {
-  const { sidebarCollapsed } = useDashboard()
+  const { activeTab } = useDashboard()
 
   return (
     <main className="flex-1 flex flex-col h-screen overflow-hidden">
@@ -15,12 +15,14 @@ export function MainPanel() {
 
       {/* 메인 콘텐츠 */}
       <div className="flex-1 overflow-y-auto">
-        {/* KPI 카드 영역 (상단 고정) */}
-        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border">
-          <div className="p-4 md:p-6">
-            <KPICards />
+        {/* KPI 카드 영역 - 트래킹 탭에서만 표시 */}
+        {activeTab === 'tracking' && (
+          <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border">
+            <div className="p-4 md:p-6">
+              <KPICards />
+            </div>
           </div>
-        </div>
+        )}
 
         {/* 탭 콘텐츠 영역 */}
         <div className="p-4 md:p-6">

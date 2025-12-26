@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useDashboard } from '@/contexts/DashboardContext'
+import { useTrackingSection } from '@/contexts/TrackingSectionContext'
 import { useInfiniteAnalyses } from '@/hooks/useInfiniteAnalyses'
 import { AnalysisListItem } from '@/components/analysis/AnalysisListItem'
 import { EmptyState } from '@/components/analysis/EmptyState'
@@ -10,6 +11,13 @@ import { ErrorMessage } from '@/components/analysis/ErrorMessage'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 import { createClient } from '@/lib/supabase/client'
 import type { Analysis } from '@/lib/supabase/types'
@@ -19,11 +27,13 @@ import { AnalysisDetailView } from './AnalysisDetailView'
 
 export function DetailTab() {
   const { selectedAnalysisId, selectedAnalysis, selectAnalysis, searchQuery, filters } = useDashboard()
+  const { sections } = useTrackingSection()
   const { analyses, isLoading, isLoadingMore, isDeleting, hasMore, error, loadMore, deleteAnalysis } =
     useInfiniteAnalyses(20)
   const { toast } = useToast()
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [detailAnalysis, setDetailAnalysis] = useState<Analysis | null>(selectedAnalysis)
+  const [filterSectionId, setFilterSectionId] = useState<string | null>(null)
 
   // 선택된 분석 ID가 변경되면 상세 데이터 로드
   useEffect(() => {
@@ -114,6 +124,11 @@ export function DetailTab() {
       if (filters.status === 'failed' && analysis.status !== 'failed') return false
     }
 
+    // 섹션 필터
+    if (filterSectionId) {
+      if (analysis.section_id !== filterSectionId) return false
+    }
+
     return true
   })
 
@@ -172,7 +187,31 @@ export function DetailTab() {
         <p className="text-sm text-muted-foreground">
           {filteredAnalyses.length}개 분석
           {searchQuery && ` (검색: "${searchQuery}")`}
+          {filterSectionId && sections.find(s => s.id === filterSectionId) &&
+            ` (섹션: ${sections.find(s => s.id === filterSectionId)?.name})`}
         </p>
+        <Select
+          value={filterSectionId || 'all'}
+          onValueChange={(value) => setFilterSectionId(value === 'all' ? null : value)}
+        >
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="모든 섹션" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">모든 섹션</SelectItem>
+            {sections.map((section) => (
+              <SelectItem key={section.id} value={section.id}>
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-2 h-2 rounded-full"
+                    style={{ backgroundColor: section.color }}
+                  />
+                  <span>{section.name}</span>
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <ScrollArea className="h-[calc(100vh-400px)] pr-4">

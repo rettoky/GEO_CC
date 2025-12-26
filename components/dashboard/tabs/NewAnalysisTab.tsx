@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useDashboard } from '@/contexts/DashboardContext'
+import { useTrackingSection } from '@/contexts/TrackingSectionContext'
 import { useAnalysis } from '@/hooks/useAnalysis'
 import { useAnalysisForm } from '@/contexts/AnalysisFormContext'
 import { QueryInput, type QueryInputData } from '@/components/analysis/QueryInput'
@@ -18,6 +19,7 @@ import { BatchAnalysisProgressTracker } from '@/components/analysis/BatchAnalysi
 import { LLMComparisonChart } from '@/components/analysis/LLMComparisonChart'
 import { ShareButton } from '@/components/analysis/ShareButton'
 import { QueryComparisonView } from '@/components/analysis/QueryComparisonView'
+import { SectionSelector } from '@/components/analysis/SectionSelector'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 import { analyzeBatchVariations, type BatchAnalysisProgress } from '@/lib/analysis/variation-orchestrator'
@@ -36,6 +38,7 @@ interface QueryResultHistory {
 export function NewAnalysisTab() {
   const router = useRouter()
   const { selectAnalysis, setActiveTab } = useDashboard()
+  const { sections, selectSection } = useTrackingSection()
   const { analyze, isLoading, isSuccess, data, error, logs, progress } = useAnalysis()
   const { toast } = useToast()
 
@@ -52,6 +55,7 @@ export function NewAnalysisTab() {
   const [isBatchAnalyzing, setIsBatchAnalyzing] = useState(false)
   const [queryHistory, setQueryHistory] = useState<QueryResultHistory[]>([])
   const [showComparison, setShowComparison] = useState(false)
+  const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null)
 
   const allQueryResultsRef = useRef<AllQueryResultsViewHandle>(null)
 
@@ -130,7 +134,8 @@ export function NewAnalysisTab() {
           setBatchProgress(progress)
         },
         queryData.brandAliases,
-        queryData.competitors
+        queryData.competitors,
+        selectedSectionId
       )
 
       toast({
@@ -160,6 +165,22 @@ export function NewAnalysisTab() {
 
   return (
     <div className="space-y-6">
+      {/* 섹션 선택기 */}
+      <SectionSelector
+        selectedSectionId={selectedSectionId}
+        onSectionChange={setSelectedSectionId}
+        onSectionCreated={(sectionId) => {
+          setSelectedSectionId(sectionId)
+          selectSection(sectionId)
+          toast({
+            title: '섹션 생성 완료',
+            description: '새 트래킹 섹션이 생성되었습니다.',
+          })
+        }}
+        defaultDomain={queryData?.domain}
+        defaultBrand={queryData?.brand}
+      />
+
       <QueryInput onSubmit={handleQueryInput} isLoading={isAnalyzing} initialData={queryData} />
 
       {queryData && !showVariationGenerator && variations.length === 0 && !isAnalyzing && (

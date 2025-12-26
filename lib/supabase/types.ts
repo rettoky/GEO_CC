@@ -85,6 +85,22 @@ export interface CrossValidation {
   myDomainGrade: 'A' | 'B' | 'C' | 'D' | null
 }
 
+/**
+ * 트래킹 섹션 - 관련 분석을 그룹화하여 추적
+ */
+export interface TrackingSection {
+  id: string
+  name: string
+  description: string | null
+  default_domain: string | null
+  default_brand: string | null
+  default_brand_aliases: string[]
+  color: string
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -116,6 +132,8 @@ export interface Database {
           // AI Review
           final_review: string | null
           final_review_created_at: string | null
+          // Tracking Section
+          section_id: string | null
         }
         Insert: {
           id?: string
@@ -144,6 +162,8 @@ export interface Database {
           // AI Review
           final_review?: string | null
           final_review_created_at?: string | null
+          // Tracking Section
+          section_id?: string | null
         }
         Update: {
           id?: string
@@ -172,6 +192,46 @@ export interface Database {
           // AI Review
           final_review?: string | null
           final_review_created_at?: string | null
+          // Tracking Section
+          section_id?: string | null
+        }
+      }
+      tracking_sections: {
+        Row: {
+          id: string
+          name: string
+          description: string | null
+          default_domain: string | null
+          default_brand: string | null
+          default_brand_aliases: string[]
+          color: string
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          description?: string | null
+          default_domain?: string | null
+          default_brand?: string | null
+          default_brand_aliases?: string[]
+          color?: string
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          description?: string | null
+          default_domain?: string | null
+          default_brand?: string | null
+          default_brand_aliases?: string[]
+          color?: string
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
         }
       }
     }

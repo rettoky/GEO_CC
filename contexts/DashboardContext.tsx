@@ -10,6 +10,7 @@ export interface AnalysisFilters {
   status: 'all' | 'completed' | 'failed'
   domain?: string
   brand?: string
+  sectionId?: string
 }
 
 interface DashboardState {

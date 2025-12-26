@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -22,156 +22,43 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts'
-import { createClient } from '@/lib/supabase/client'
-import { format } from 'date-fns'
-import { ko } from 'date-fns/locale'
-import type { LLMType } from '@/types'
-import type { Analysis } from '@/lib/supabase/types'
-
-interface TrackingData {
-  date: string
-  citationRate: number
-  brandExposure: number
-  perplexity: number
-  chatgpt: number
-  gemini: number
-  claude: number
-}
+import { useTrackingSection } from '@/contexts/TrackingSectionContext'
+import { useTrackingAnalyses } from '@/hooks/useTrackingAnalyses'
+import { Folder, TrendingUp } from 'lucide-react'
 
 export function TrackingTab() {
-  const [loading, setLoading] = useState(true)
+  const { selectedSectionId, sections } = useTrackingSection()
   const [dateRange, setDateRange] = useState<'7days' | '30days' | 'all'>('30days')
-  const [trackingData, setTrackingData] = useState<TrackingData[]>([])
 
-  useEffect(() => {
-    async function fetchTrackingData() {
-      setLoading(true)
-      try {
-        const supabase = createClient()
+  const { trackingData, analyses, loading, error } = useTrackingAnalyses({
+    sectionId: selectedSectionId,
+    dateRange,
+  })
 
-        // 날짜 범위 계산
-        let dateFilter = ''
-        const now = new Date()
-        if (dateRange === '7days') {
-          const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-          dateFilter = sevenDaysAgo.toISOString()
-        } else if (dateRange === '30days') {
-          const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
-          dateFilter = thirtyDaysAgo.toISOString()
-        }
+  const selectedSection = sections.find(s => s.id === selectedSectionId)
 
-        // 분석 데이터 가져오기
-        let query = supabase
-          .from('analyses')
-          .select('*')
-          .eq('status', 'completed')
-          .order('created_at', { ascending: true })
-
-        if (dateFilter) {
-          query = query.gte('created_at', dateFilter)
-        }
-
-        const { data: analyses, error } = await query.limit(100)
-
-        if (error) throw error
-
-        if (!analyses || analyses.length === 0) {
-          setTrackingData([])
-          return
-        }
-
-        // 날짜별로 그룹화하여 트래킹 데이터 생성
-        const dateMap = new Map<string, {
-          citationRates: number[]
-          brandRates: number[]
-          llmRates: Record<LLMType, number[]>
-        }>()
-
-        analyses.forEach((analysis: Analysis) => {
-          const date = format(new Date(analysis.created_at), 'MM/dd', { locale: ko })
-
-          if (!dateMap.has(date)) {
-            dateMap.set(date, {
-              citationRates: [],
-              brandRates: [],
-              llmRates: {
-                perplexity: [],
-                chatgpt: [],
-                gemini: [],
-                claude: [],
-              },
-            })
-          }
-
-          const entry = dateMap.get(date)!
-          const results = analysis.results as unknown as Record<string, unknown>
-
-          // 인용율 계산
-          let totalCitations = 0
-          let totalChecked = 0
-          const llmTypes: LLMType[] = ['perplexity', 'chatgpt', 'gemini', 'claude']
-
-          llmTypes.forEach((llm) => {
-            const llmResult = results?.[llm] as { citations?: Array<{ cited: boolean }> } | null
-            if (llmResult?.citations) {
-              const cited = llmResult.citations.filter((c: { cited: boolean }) => c.cited).length
-              const total = llmResult.citations.length
-              totalCitations += cited
-              totalChecked += total
-
-              // LLM별 인용율
-              if (total > 0) {
-                entry.llmRates[llm].push((cited / total) * 100)
-              }
-            }
-          })
-
-          if (totalChecked > 0) {
-            entry.citationRates.push((totalCitations / totalChecked) * 100)
-          }
-
-          // 브랜드 노출률 계산
-          let exposedLlms = 0
-          llmTypes.forEach((llm) => {
-            const llmResult = results?.[llm] as { citations?: Array<{ cited: boolean }> } | null
-            if (llmResult?.citations?.some((c: { cited: boolean }) => c.cited)) {
-              exposedLlms++
-            }
-          })
-          entry.brandRates.push((exposedLlms / 4) * 100)
-        })
-
-        // Map을 배열로 변환
-        const chartData: TrackingData[] = Array.from(dateMap.entries()).map(([date, data]) => {
-          const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0
-
-          return {
-            date,
-            citationRate: Math.round(avg(data.citationRates) * 10) / 10,
-            brandExposure: Math.round(avg(data.brandRates) * 10) / 10,
-            perplexity: Math.round(avg(data.llmRates.perplexity) * 10) / 10,
-            chatgpt: Math.round(avg(data.llmRates.chatgpt) * 10) / 10,
-            gemini: Math.round(avg(data.llmRates.gemini) * 10) / 10,
-            claude: Math.round(avg(data.llmRates.claude) * 10) / 10,
-          }
-        })
-
-        setTrackingData(chartData)
-      } catch (error) {
-        console.error('트래킹 데이터 로드 오류:', error)
-        setTrackingData([])
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchTrackingData()
-  }, [dateRange])
+  // 섹션이 선택되지 않은 경우
+  if (!selectedSectionId) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center py-12">
+          <Folder className="h-12 w-12 text-muted-foreground mb-4" />
+          <h3 className="text-lg font-semibold mb-2">트래킹 섹션을 선택하세요</h3>
+          <p className="text-muted-foreground text-center max-w-md">
+            좌측 사이드바에서 트래킹할 섹션을 선택하세요.
+            <br />
+            섹션이 없다면 새 분석 탭에서 섹션을 먼저 생성하세요.
+          </p>
+        </CardContent>
+      </Card>
+    )
+  }
 
   if (loading) {
     return (
       <div className="space-y-6">
-        <div className="flex justify-end">
+        <div className="flex justify-between items-center">
+          <Skeleton className="h-8 w-48" />
           <Skeleton className="h-10 w-32" />
         </div>
         <div className="grid gap-6">
@@ -182,14 +69,28 @@ export function TrackingTab() {
     )
   }
 
+  if (error) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center py-12">
+          <p className="text-destructive text-center">{error}</p>
+        </CardContent>
+      </Card>
+    )
+  }
+
   if (trackingData.length === 0) {
     return (
       <Card>
         <CardContent className="flex flex-col items-center justify-center py-12">
-          <p className="text-muted-foreground text-center">
-            트래킹할 분석 데이터가 없습니다.
+          <TrendingUp className="h-12 w-12 text-muted-foreground mb-4" />
+          <h3 className="text-lg font-semibold mb-2">
+            {selectedSection ? `"${selectedSection.name}" 섹션` : '선택한 섹션'}에 분석 데이터가 없습니다
+          </h3>
+          <p className="text-muted-foreground text-center max-w-md">
+            새 분석 탭에서 이 섹션을 선택하고 분석을 실행하세요.
             <br />
-            새 분석 탭에서 분석을 시작하세요.
+            분석 결과가 여기에 추적됩니다.
           </p>
         </CardContent>
       </Card>
@@ -198,8 +99,22 @@ export function TrackingTab() {
 
   return (
     <div className="space-y-6">
-      {/* 기간 필터 */}
-      <div className="flex justify-end">
+      {/* 헤더: 섹션 정보 및 기간 필터 */}
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-3">
+          {selectedSection && (
+            <>
+              <div
+                className="w-3 h-3 rounded-full"
+                style={{ backgroundColor: selectedSection.color }}
+              />
+              <h2 className="text-xl font-semibold">{selectedSection.name}</h2>
+              <span className="text-sm text-muted-foreground">
+                ({analyses.length}개 분석)
+              </span>
+            </>
+          )}
+        </div>
         <Select value={dateRange} onValueChange={(value) => setDateRange(value as typeof dateRange)}>
           <SelectTrigger className="w-32">
             <SelectValue />

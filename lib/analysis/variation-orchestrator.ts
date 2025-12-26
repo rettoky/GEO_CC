@@ -96,7 +96,8 @@ export async function analyzeBatchVariations(
   myBrand: string,
   onProgress?: ProgressCallback,
   brandAliases?: string[],
-  competitors?: Array<{ name: string; aliases: string[] }>
+  competitors?: Array<{ name: string; aliases: string[] }>,
+  sectionId?: string | null
 ) {
   const supabase = createClient()
   const totalQueries = variations.length + 1 // base + variations
@@ -121,6 +122,7 @@ export async function analyzeBatchVariations(
       base_query: baseQuery,
       query_variations_count: variations.length,
       total_queries_analyzed: totalQueries,
+      section_id: sectionId || null,
     })
     .select()
     .single()
