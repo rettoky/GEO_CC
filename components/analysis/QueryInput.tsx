@@ -295,7 +295,7 @@ export function QueryInput({ onSubmit, isLoading, initialData }: QueryInputProps
 
             {/* 컴팩트 설정 영역 */}
             <div className="px-6 py-4">
-              <Accordion type="single" collapsible defaultValue={hasAdvancedSettings ? "settings" : undefined}>
+              <Accordion type="single" collapsible defaultValue="settings">
                 <AccordionItem value="settings" className="border-0">
                   <AccordionTrigger className="py-3 px-4 rounded-lg bg-slate-100/50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors [&[data-state=open]]:rounded-b-none">
                     <div className="flex items-center gap-3 text-sm">
