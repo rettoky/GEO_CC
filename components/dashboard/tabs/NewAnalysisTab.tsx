@@ -236,12 +236,22 @@ export function NewAnalysisTab() {
       )}
 
       {queryData && !isAnalyzing && !(showVariationGenerator && variations.length === 0) && (
-        <div className="flex justify-center">
-          <Button onClick={handleStartAnalysis} size="lg" className="min-w-[200px]">
+        <div className="flex flex-col items-center gap-2">
+          <Button
+            onClick={handleStartAnalysis}
+            size="lg"
+            className="min-w-[200px]"
+            disabled={!selectedSectionId}
+          >
             {variations.length > 0
               ? `${variations.length + 1}개 쿼리 분석 시작`
               : '분석 시작'}
           </Button>
+          {!selectedSectionId && (
+            <p className="text-sm text-muted-foreground">
+              분석을 시작하려면 먼저 트래킹 섹션을 선택하세요.
+            </p>
+          )}
         </div>
       )}
 
