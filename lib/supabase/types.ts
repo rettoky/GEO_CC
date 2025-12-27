@@ -265,6 +265,24 @@ export interface BrandMention {
   mentionCount: number
   mentionedInLLMs: LLMType[]
   contexts: string[] // 언급된 문맥 (앞뒤 텍스트)
+  /** 감성 분석 결과 (선택적) */
+  sentimentAnalysis?: BrandMentionSentiment[]
+}
+
+/**
+ * 브랜드 언급별 감성 분석
+ */
+export interface BrandMentionSentiment {
+  /** 문맥 */
+  context: string
+  /** 감성 유형 */
+  sentiment: 'positive' | 'negative' | 'neutral'
+  /** 신뢰도 (0-1) */
+  confidence: number
+  /** 감성 판단 이유 */
+  reason: string
+  /** 출처 LLM */
+  llmSource: LLMType
 }
 
 export interface BrandMentionAnalysis {

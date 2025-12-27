@@ -21,7 +21,49 @@ export type {
   AnalyzeResponse,
   BrandMention,
   BrandMentionAnalysis,
+  BrandMentionSentiment,
 } from '@/lib/supabase/types'
+
+// Re-export Sentiment types
+export type {
+  SentimentType,
+  SentimentAnalysis,
+  BrandMentionWithSentiment,
+  SentimentGroupedMentions,
+  SentimentSummary,
+  BrandSentimentAnalysis,
+  SentimentAnalysisResponse,
+} from '@/lib/types/sentiment'
+
+export {
+  SENTIMENT_COLORS,
+  SENTIMENT_ICONS,
+  SENTIMENT_LABELS,
+} from '@/lib/types/sentiment'
+
+// Re-export Visualization types
+export type {
+  HeatmapDataPoint,
+  HeatmapData,
+  HeatmapColorScale,
+  RadarDataPoint,
+  RadarSeries,
+  RadarChartData,
+  RadarMetricKey,
+  DrilldownData,
+  DrilldownAnalysis,
+  DrilldownState,
+  ChartType,
+  TrackingVisualizationData,
+  ChartConfig,
+} from '@/lib/types/visualization'
+
+export {
+  RADAR_METRICS,
+  LLM_COLORS,
+  CHART_COLORS,
+  calculateHeatmapColor,
+} from '@/lib/types/visualization'
 
 export { INSURANCE_COMPETITOR_BRANDS } from '@/lib/supabase/types'
 

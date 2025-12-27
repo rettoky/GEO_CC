@@ -10,6 +10,7 @@ import { CompetitorComparison } from '@/components/analysis/CompetitorComparison
 import { FinalReview } from '@/components/analysis/FinalReview'
 import { ReviewChat } from '@/components/analysis/ReviewChat'
 import { BrandMentionCard } from '@/components/analysis/BrandMentionCard'
+import { SentimentDashboard } from '@/components/analysis/SentimentDashboard'
 import { AllQueryResultsView, type AllQueryResultsViewHandle } from '@/components/analysis/AllQueryResultsView'
 import type { Analysis } from '@/lib/supabase/types'
 import type { LLMType, AnalysisResults, AnalysisSummary, BrandMention, CrossValidation, CrossValidationItem } from '@/types'
@@ -433,6 +434,15 @@ export function AnalysisDetailView({ analysis }: AnalysisDetailViewProps) {
           }}
         />
       </div>
+
+      {/* 감성 분석 대시보드 - myBrand에 sentimentAnalysis가 있을 때만 표시 */}
+      {summary.brandMentionAnalysis?.myBrand?.sentimentAnalysis &&
+       summary.brandMentionAnalysis.myBrand.sentimentAnalysis.length > 0 && (
+        <SentimentDashboard
+          brand={analysis.my_brand || summary.brandMentionAnalysis.myBrand.brand}
+          sentiments={summary.brandMentionAnalysis.myBrand.sentimentAnalysis}
+        />
+      )}
 
       <CompetitorComparison
         results={results}

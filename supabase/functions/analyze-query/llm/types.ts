@@ -85,6 +85,33 @@ export interface CrossValidation {
 }
 
 /**
+ * 감성 분석 타입
+ */
+export type SentimentType = 'positive' | 'negative' | 'neutral'
+
+export interface SentimentResult {
+  /** 감성 유형 */
+  sentiment: SentimentType
+  /** 신뢰도 (0-1) */
+  confidence: number
+  /** 감성 판단 이유 */
+  reason: string
+}
+
+export interface BrandMentionSentiment {
+  /** 문맥 */
+  context: string
+  /** 감성 분석 결과 */
+  sentiment: SentimentType
+  /** 신뢰도 */
+  confidence: number
+  /** 감성 판단 이유 */
+  reason: string
+  /** 출처 LLM */
+  llmSource: LLMType
+}
+
+/**
  * 브랜드 언급 분석 (방법론 문서 Section 5.2)
  */
 export interface BrandMentionDetail {
@@ -93,6 +120,8 @@ export interface BrandMentionDetail {
   mentionCount: number
   mentionedInLLMs: LLMType[]
   contexts: string[] // 언급된 문맥 (앞뒤 텍스트)
+  /** 감성 분석 결과 (선택적) */
+  sentimentAnalysis?: BrandMentionSentiment[]
 }
 
 export interface BrandMentionAnalysis {

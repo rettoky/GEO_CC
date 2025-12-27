@@ -15,9 +15,12 @@ import {
   ChevronUp,
   Users,
   Info,
+  ThumbsUp,
+  ThumbsDown,
+  Minus,
 } from 'lucide-react'
-import { useState } from 'react'
-import type { BrandMentionAnalysis } from '@/types'
+import { useState, useMemo } from 'react'
+import type { BrandMentionAnalysis, BrandMentionSentiment } from '@/types'
 
 // 보험 상품명 → 보험사 매핑 (일반적인 패턴)
 const INSURANCE_COMPANY_PATTERNS: Record<string, string[]> = {
@@ -69,6 +72,74 @@ const LLM_NAMES: Record<string, string> = {
   chatgpt: 'ChatGPT',
   gemini: 'Gemini',
   claude: 'Claude',
+}
+
+/**
+ * 감성 분석 미니 요약 컴포넌트
+ */
+function SentimentMiniSummary({ sentiments }: { sentiments?: BrandMentionSentiment[] }) {
+  if (!sentiments || sentiments.length === 0) {
+    return null
+  }
+
+  const stats = useMemo(() => {
+    const positive = sentiments.filter(s => s.sentiment === 'positive').length
+    const negative = sentiments.filter(s => s.sentiment === 'negative').length
+    const neutral = sentiments.filter(s => s.sentiment === 'neutral').length
+    return { positive, negative, neutral, total: sentiments.length }
+  }, [sentiments])
+
+  return (
+    <div className="mt-3 p-2 rounded-lg bg-white/50 dark:bg-gray-800/30 border border-gray-200 dark:border-gray-700">
+      <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+        감성 분석
+      </p>
+      <div className="flex items-center gap-3">
+        {/* 긍정 */}
+        <div className="flex items-center gap-1">
+          <ThumbsUp className="h-3.5 w-3.5 text-emerald-500" />
+          <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+            {stats.positive}
+          </span>
+        </div>
+        {/* 중립 */}
+        <div className="flex items-center gap-1">
+          <Minus className="h-3.5 w-3.5 text-gray-400" />
+          <span className="text-xs font-medium text-gray-500">
+            {stats.neutral}
+          </span>
+        </div>
+        {/* 부정 */}
+        <div className="flex items-center gap-1">
+          <ThumbsDown className="h-3.5 w-3.5 text-red-500" />
+          <span className="text-xs font-medium text-red-600 dark:text-red-400">
+            {stats.negative}
+          </span>
+        </div>
+        {/* 진행 바 */}
+        <div className="flex-1 flex h-1.5 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700 ml-2">
+          {stats.positive > 0 && (
+            <div
+              className="bg-emerald-500"
+              style={{ width: `${(stats.positive / stats.total) * 100}%` }}
+            />
+          )}
+          {stats.neutral > 0 && (
+            <div
+              className="bg-gray-400"
+              style={{ width: `${(stats.neutral / stats.total) * 100}%` }}
+            />
+          )}
+          {stats.negative > 0 && (
+            <div
+              className="bg-red-500"
+              style={{ width: `${(stats.negative / stats.total) * 100}%` }}
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 /**
@@ -168,6 +239,9 @@ export function BrandMentionCard({ brandMentionAnalysis, myBrand, onCompetitorCl
                     검색된 별칭: {myBrandMention.aliases.join(', ')}
                   </div>
                 )}
+
+                {/* 감성 분석 요약 */}
+                <SentimentMiniSummary sentiments={myBrandMention.sentimentAnalysis} />
               </div>
             ) : (
               <div className="bg-gray-50 dark:bg-gray-900/30 rounded-lg p-4 text-center">
@@ -297,6 +371,9 @@ export function BrandMentionCard({ brandMentionAnalysis, myBrand, onCompetitorCl
                               상세 문맥 정보가 없습니다
                             </div>
                           )}
+
+                          {/* 감성 분석 요약 */}
+                          <SentimentMiniSummary sentiments={competitor.sentimentAnalysis} />
 
                           {/* 전체 결과에서 보기 버튼 */}
                           {onCompetitorClick && (

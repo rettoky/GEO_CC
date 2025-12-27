@@ -12,11 +12,13 @@ import type {
   LLMType,
   BrandMentionDetail,
   BrandMentionAnalysis,
+  BrandMentionSentiment,
 } from './llm/types.ts'
 import { callPerplexity } from './llm/perplexity.ts'
 import { callOpenAI } from './llm/openai.ts'
 import { callGemini } from './llm/gemini.ts'
 import { callClaude } from './llm/claude.ts'
+import { analyzeBrandSentiments } from './llm/sentiment.ts'
 
 /**
  * CORS 헤더 설정
@@ -359,10 +361,33 @@ async function analyzeBrandMentions(
     }
   }
 
+  // Google AI API 키 (감성 분석용)
+  const googleApiKey = Deno.env.get('GOOGLE_AI_API_KEY') || ''
+
   // 내 브랜드 언급 분석
   let myBrandMention: BrandMentionDetail | null = null
   if (myBrandAliases.length > 0) {
-    myBrandMention = detectBrandMentions(results, llmKeys, myBrand || '', myBrandAliases)
+    const detection = detectBrandMentions(results, llmKeys, myBrand || '', myBrandAliases)
+
+    // 감성 분석 수행
+    let sentimentAnalysis: BrandMentionSentiment[] = []
+    if (detection.contextsWithSource.length > 0 && googleApiKey) {
+      console.log('[DEBUG] Running sentiment analysis for my brand:', myBrand)
+      sentimentAnalysis = await analyzeBrandSentiments(
+        detection.contextsWithSource,
+        myBrand || '',
+        googleApiKey
+      )
+    }
+
+    myBrandMention = {
+      brand: detection.brand,
+      aliases: detection.aliases,
+      mentionCount: detection.mentionCount,
+      mentionedInLLMs: detection.mentionedInLLMs,
+      contexts: detection.contexts,
+      sentimentAnalysis,
+    }
   }
 
   // 경쟁사 브랜드 분석
@@ -404,12 +429,24 @@ async function analyzeBrandMentions(
       // LLM 합집합
       const allLLMs = [...new Set([...textMention.mentionedInLLMs, ...domainMatches.llms])]
 
+      // 경쟁사 감성 분석 (선택적 - 성능 고려하여 상위 3개만)
+      let sentimentAnalysis: BrandMentionSentiment[] = []
+      if (textMention.contextsWithSource.length > 0 && googleApiKey && competitors.length < 3) {
+        console.log('[DEBUG] Running sentiment analysis for competitor:', brand.name)
+        sentimentAnalysis = await analyzeBrandSentiments(
+          textMention.contextsWithSource,
+          brand.name,
+          googleApiKey
+        )
+      }
+
       competitors.push({
         brand: brand.name,
         aliases: brand.aliases,
         mentionCount: totalMentionCount,
         mentionedInLLMs: allLLMs,
         contexts: textMention.contexts,
+        sentimentAnalysis,
       })
 
       console.log('[DEBUG] Competitor brand stats:', {
@@ -417,7 +454,8 @@ async function analyzeBrandMentions(
         textMentions: textMention.mentionCount,
         domainCitations: domainMatches.count,
         matchedDomains: domainMatches.domains,
-        total: totalMentionCount
+        total: totalMentionCount,
+        sentimentCount: sentimentAnalysis.length
       })
     }
   }
@@ -436,18 +474,28 @@ async function analyzeBrandMentions(
 }
 
 /**
+ * 문맥과 출처 LLM 정보
+ */
+interface ContextWithSource {
+  context: string
+  llmSource: LLMType
+}
+
+/**
  * 특정 브랜드의 언급 감지 (중복 집계 방지)
  * 별칭이 겹치는 경우 (예: "삼성화재"와 "삼성") 같은 위치는 1회만 집계
+ * LLM 출처 정보와 함께 문맥 반환
  */
 function detectBrandMentions(
   results: AnalysisResults,
   llmKeys: (keyof AnalysisResults)[],
   brandName: string,
   aliases: string[]
-): BrandMentionDetail {
+): BrandMentionDetail & { contextsWithSource: ContextWithSource[] } {
   let totalCount = 0
   const mentionedInLLMs: LLMType[] = []
   const contexts: string[] = []
+  const contextsWithSource: ContextWithSource[] = []
 
   for (const llmKey of llmKeys) {
     const result = results[llmKey]
@@ -490,13 +538,14 @@ function detectBrandMentions(
 
     const llmMentionCount = uniqueMatches.length
 
-    // 문맥 추출 (최대 3개, 중복 제거된 매칭에서)
+    // 문맥 추출 (최대 5개, 중복 제거된 매칭에서)
     for (const pos of uniqueMatches) {
-      if (contexts.length >= 3) break
+      if (contextsWithSource.length >= 5) break
 
       const start = Math.max(0, pos.start - 30)
       const end = Math.min(answer.length, pos.end + 30)
       const context = answer.substring(start, end).trim()
+      const formattedContext = '...' + context + '...'
 
       // 유사한 문맥 중복 방지
       const isDuplicate = contexts.some(c =>
@@ -505,7 +554,11 @@ function detectBrandMentions(
       )
 
       if (!isDuplicate) {
-        contexts.push('...' + context + '...')
+        contexts.push(formattedContext)
+        contextsWithSource.push({
+          context: formattedContext,
+          llmSource: llmKey as LLMType
+        })
       }
     }
 
@@ -521,6 +574,7 @@ function detectBrandMentions(
     mentionCount: totalCount,
     mentionedInLLMs,
     contexts,
+    contextsWithSource,
   }
 }
 
