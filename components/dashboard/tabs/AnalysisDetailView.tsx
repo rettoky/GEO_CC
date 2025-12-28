@@ -181,6 +181,7 @@ export function AnalysisDetailView({ analysis }: AnalysisDetailViewProps) {
               mentionCount: 0,
               mentionedInLLMs: [],
               contexts: [],
+              sentimentAnalysis: [],
             }
           }
           myBrandMention.mentionCount += bma.myBrand.mentionCount
@@ -188,6 +189,13 @@ export function AnalysisDetailView({ analysis }: AnalysisDetailViewProps) {
             if (!myBrandMention.mentionedInLLMs.includes(llm)) {
               myBrandMention.mentionedInLLMs.push(llm)
             }
+          }
+          // 감성 분석 데이터 집계
+          if (bma.myBrand.sentimentAnalysis && bma.myBrand.sentimentAnalysis.length > 0) {
+            myBrandMention.sentimentAnalysis = [
+              ...(myBrandMention.sentimentAnalysis || []),
+              ...bma.myBrand.sentimentAnalysis,
+            ]
           }
         }
 
@@ -200,6 +208,13 @@ export function AnalysisDetailView({ analysis }: AnalysisDetailViewProps) {
                 existing.mentionedInLLMs.push(llm)
               }
             }
+            // 경쟁사 감성 분석 데이터 집계
+            if (competitor.sentimentAnalysis && competitor.sentimentAnalysis.length > 0) {
+              existing.sentimentAnalysis = [
+                ...(existing.sentimentAnalysis || []),
+                ...competitor.sentimentAnalysis,
+              ]
+            }
           } else {
             brandMap.set(competitor.brand, {
               brand: competitor.brand,
@@ -207,6 +222,7 @@ export function AnalysisDetailView({ analysis }: AnalysisDetailViewProps) {
               mentionCount: competitor.mentionCount,
               mentionedInLLMs: [...competitor.mentionedInLLMs],
               contexts: [],
+              sentimentAnalysis: competitor.sentimentAnalysis || [],
             })
           }
         }
