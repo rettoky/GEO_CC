@@ -17,6 +17,9 @@ import { cn } from '@/lib/utils'
 import type { LLMType } from '@/lib/supabase/types'
 import { LLM_COLORS, RADAR_METRICS, type RadarMetricKey } from '@/lib/types/visualization'
 
+// Claude는 인용 데이터가 없어 제외
+const ACTIVE_LLMS: LLMType[] = ['perplexity', 'chatgpt', 'gemini']
+
 const LLM_LABELS: Record<LLMType, string> = {
   chatgpt: 'ChatGPT',
   claude: 'Claude',
@@ -63,10 +66,8 @@ export function RadarComparisonChart({
   const llmRadarData = useMemo(() => {
     if (compareMode !== 'llm' || data.length === 0) return null
 
-    const llms: LLMType[] = ['perplexity', 'chatgpt', 'gemini', 'claude']
-
     // 각 LLM별 평균 계산
-    const llmStats = llms.map(llm => {
+    const llmStats = ACTIVE_LLMS.map(llm => {
       const values = data.map(d => d[llm]).filter((v): v is number => v !== null)
       const avg = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0
       const consistency = values.length > 1
@@ -137,7 +138,7 @@ export function RadarComparisonChart({
 
   const radarData = compareMode === 'llm' ? llmRadarData : dateRadarData
   const series = compareMode === 'llm'
-    ? (['perplexity', 'chatgpt', 'gemini', 'claude'] as LLMType[])
+    ? ACTIVE_LLMS
     : (selectedDates?.slice(0, 4) || data.slice(-3).map(d => d.date))
 
   if (!radarData || radarData.length === 0) {

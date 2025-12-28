@@ -13,6 +13,9 @@ import { cn } from '@/lib/utils'
 import type { LLMType } from '@/lib/supabase/types'
 import { calculateHeatmapColor, LLM_COLORS } from '@/lib/types/visualization'
 
+// Claude는 인용 데이터가 없어 제외
+const ACTIVE_LLMS: LLMType[] = ['perplexity', 'chatgpt', 'gemini']
+
 const LLM_LABELS: Record<LLMType, string> = {
   chatgpt: 'ChatGPT',
   claude: 'Claude',
@@ -64,13 +67,12 @@ export function HeatmapChart({
 }: HeatmapChartProps) {
   const [hoveredCell, setHoveredCell] = useState<{ date: string; llm: LLMType } | null>(null)
 
-  // 데이터를 히트맵 포인트로 변환
+  // 데이터를 히트맵 포인트로 변환 (Claude 제외)
   const heatmapData = useMemo(() => {
-    const llms: LLMType[] = ['perplexity', 'chatgpt', 'gemini', 'claude']
     const points: HeatmapDataPoint[] = []
 
     for (const row of data) {
-      for (const llm of llms) {
+      for (const llm of ACTIVE_LLMS) {
         points.push({
           date: row.date,
           llm,
@@ -88,8 +90,8 @@ export function HeatmapChart({
     return Array.from(new Set(data.map(d => d.date)))
   }, [data])
 
-  // LLM 목록
-  const llms: LLMType[] = ['perplexity', 'chatgpt', 'gemini', 'claude']
+  // LLM 목록 (Claude는 인용 데이터가 없어 제외)
+  const llms = ACTIVE_LLMS
 
   // 셀 크기 계산
   const cellWidth = Math.max(32, Math.min(60, 500 / dates.length))

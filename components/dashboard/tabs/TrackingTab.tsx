@@ -25,14 +25,14 @@ import {
 } from 'recharts'
 import { useTrackingSection } from '@/contexts/TrackingSectionContext'
 import { useTrackingAnalyses } from '@/hooks/useTrackingAnalyses'
-import { Folder, TrendingUp, Grid3X3, Radar, BarChart3 } from 'lucide-react'
-import { HeatmapChart, RadarComparisonChart, DrilldownModal } from '@/components/tracking'
+import { Folder, TrendingUp, Grid3X3, Radar, BarChart3, Heart } from 'lucide-react'
+import { HeatmapChart, RadarComparisonChart, DrilldownModal, SentimentTrackingDashboard } from '@/components/tracking'
 import type { LLMType } from '@/lib/supabase/types'
 
 export function TrackingTab() {
   const { selectedSectionId, sections } = useTrackingSection()
   const [dateRange, setDateRange] = useState<'7days' | '30days' | 'all'>('30days')
-  const [chartView, setChartView] = useState<'basic' | 'heatmap' | 'radar'>('basic')
+  const [chartView, setChartView] = useState<'basic' | 'heatmap' | 'radar' | 'sentiment'>('basic')
   const [drilldown, setDrilldown] = useState<{
     isOpen: boolean
     date?: string
@@ -165,10 +165,14 @@ export function TrackingTab() {
         <div className="flex items-center gap-2">
           {/* 차트 뷰 선택 */}
           <Tabs value={chartView} onValueChange={(v) => setChartView(v as typeof chartView)}>
-            <TabsList className="grid grid-cols-3 w-auto">
+            <TabsList className="grid grid-cols-4 w-auto">
               <TabsTrigger value="basic" className="flex items-center gap-1 px-3">
                 <BarChart3 className="h-4 w-4" />
                 <span className="hidden sm:inline">기본</span>
+              </TabsTrigger>
+              <TabsTrigger value="sentiment" className="flex items-center gap-1 px-3">
+                <Heart className="h-4 w-4" />
+                <span className="hidden sm:inline">감성</span>
               </TabsTrigger>
               <TabsTrigger value="heatmap" className="flex items-center gap-1 px-3">
                 <Grid3X3 className="h-4 w-4" />
@@ -286,13 +290,17 @@ export function TrackingTab() {
                     <Bar dataKey="perplexity" name="Perplexity" fill="#8b5cf6" />
                     <Bar dataKey="chatgpt" name="ChatGPT" fill="#22c55e" />
                     <Bar dataKey="gemini" name="Gemini" fill="#3b82f6" />
-                    <Bar dataKey="claude" name="Claude" fill="#f59e0b" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </CardContent>
           </Card>
         </>
+      )}
+
+      {/* 감성 분석 뷰 */}
+      {chartView === 'sentiment' && (
+        <SentimentTrackingDashboard data={trackingData} />
       )}
 
       {/* 히트맵 뷰 */}

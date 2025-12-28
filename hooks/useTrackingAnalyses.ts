@@ -1,8 +1,16 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import type { Analysis, LLMType } from '@/lib/supabase/types'
+import type { Analysis, LLMType, BrandMentionSentiment } from '@/lib/supabase/types'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
+
+export interface SentimentData {
+  positive: number
+  negative: number
+  neutral: number
+  total: number
+  score: number // -100 ~ +100
+}
 
 export interface TrackingData {
   date: string
@@ -12,6 +20,8 @@ export interface TrackingData {
   chatgpt: number
   gemini: number
   claude: number
+  // 감성 분석 데이터
+  sentiment: SentimentData
 }
 
 interface UseTrackingAnalysesOptions {
@@ -92,6 +102,7 @@ export function useTrackingAnalyses({
         citationRates: number[]
         brandRates: number[]
         llmRates: Record<LLMType, number[]>
+        sentiments: BrandMentionSentiment[]
       }>()
 
       fetchedAnalyses.forEach((analysis: Analysis) => {
@@ -107,6 +118,7 @@ export function useTrackingAnalyses({
               gemini: [],
               claude: [],
             },
+            sentiments: [],
           })
         }
 
@@ -146,11 +158,42 @@ export function useTrackingAnalyses({
           }
         })
         entry.brandRates.push((exposedLlms / 4) * 100)
+
+        // 감성 분석 데이터 수집 (summary에서 직접 가져오기)
+        const summary = analysis.summary as { brandMentionAnalysis?: { myBrand?: { sentimentAnalysis?: BrandMentionSentiment[] } } } | null
+        const sentimentData = summary?.brandMentionAnalysis?.myBrand?.sentimentAnalysis
+        if (sentimentData && sentimentData.length > 0) {
+          entry.sentiments.push(...sentimentData)
+        }
+
+        // intermediate_results에서도 감성 분석 데이터 수집 (배치 분석의 경우)
+        const intermediateResults = analysis.intermediate_results as {
+          allQueryResults?: Array<{
+            summary?: { brandMentionAnalysis?: { myBrand?: { sentimentAnalysis?: BrandMentionSentiment[] } } }
+          }>
+        } | null
+        if (intermediateResults?.allQueryResults) {
+          for (const queryResult of intermediateResults.allQueryResults) {
+            const querySentiment = queryResult.summary?.brandMentionAnalysis?.myBrand?.sentimentAnalysis
+            if (querySentiment && querySentiment.length > 0) {
+              entry.sentiments.push(...querySentiment)
+            }
+          }
+        }
       })
 
       // Map을 배열로 변환
       const chartData: TrackingData[] = Array.from(dateMap.entries()).map(([date, data]) => {
         const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0
+
+        // 감성 분석 집계
+        const sentiments = data.sentiments
+        const positive = sentiments.filter(s => s.sentiment === 'positive').length
+        const negative = sentiments.filter(s => s.sentiment === 'negative').length
+        const neutral = sentiments.filter(s => s.sentiment === 'neutral').length
+        const total = sentiments.length
+        // 감성 점수: -100 ~ +100 (긍정 +1, 부정 -1, 중립 0)
+        const score = total > 0 ? Math.round(((positive - negative) / total) * 100) : 0
 
         return {
           date,
@@ -160,6 +203,7 @@ export function useTrackingAnalyses({
           chatgpt: Math.round(avg(data.llmRates.chatgpt) * 10) / 10,
           gemini: Math.round(avg(data.llmRates.gemini) * 10) / 10,
           claude: Math.round(avg(data.llmRates.claude) * 10) / 10,
+          sentiment: { positive, negative, neutral, total, score },
         }
       })
 
