@@ -4,7 +4,6 @@
  */
 
 export { HeatmapChart } from './HeatmapChart'
-export { RadarComparisonChart } from './RadarChart'
 export { DrilldownModal } from './DrilldownModal'
 export {
   SentimentScoreChart,

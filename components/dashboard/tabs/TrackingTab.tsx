@@ -25,8 +25,8 @@ import {
 } from 'recharts'
 import { useTrackingSection } from '@/contexts/TrackingSectionContext'
 import { useTrackingAnalyses, type TrackingData } from '@/hooks/useTrackingAnalyses'
-import { Folder, TrendingUp, Grid3X3, Radar, BarChart3, Heart } from 'lucide-react'
-import { HeatmapChart, RadarComparisonChart, DrilldownModal, SentimentTrackingDashboard } from '@/components/tracking'
+import { Folder, TrendingUp, Grid3X3, BarChart3, Heart } from 'lucide-react'
+import { HeatmapChart, DrilldownModal, SentimentTrackingDashboard } from '@/components/tracking'
 import type { LLMType } from '@/lib/supabase/types'
 
 type AggregationType = 'daily' | 'weekly' | 'monthly'
@@ -87,7 +87,7 @@ function aggregateData(data: TrackingData[], aggregation: AggregationType): Trac
 export function TrackingTab() {
   const { selectedSectionId, sections } = useTrackingSection()
   const [dateRange, setDateRange] = useState<'7days' | '30days' | 'all'>('30days')
-  const [chartView, setChartView] = useState<'basic' | 'heatmap' | 'radar' | 'sentiment'>('basic')
+  const [chartView, setChartView] = useState<'basic' | 'heatmap' | 'sentiment'>('basic')
   const [aggregation, setAggregation] = useState<AggregationType>('daily')
   const [drilldown, setDrilldown] = useState<{
     isOpen: boolean
@@ -251,7 +251,7 @@ export function TrackingTab() {
         <div className="flex items-center gap-2 flex-wrap">
           {/* 차트 뷰 선택 */}
           <Tabs value={chartView} onValueChange={(v) => setChartView(v as typeof chartView)}>
-            <TabsList className="grid grid-cols-4 w-auto">
+            <TabsList className="grid grid-cols-3 w-auto">
               <TabsTrigger value="basic" className="flex items-center gap-1 px-3">
                 <BarChart3 className="h-4 w-4" />
                 <span className="hidden sm:inline">기본</span>
@@ -263,10 +263,6 @@ export function TrackingTab() {
               <TabsTrigger value="heatmap" className="flex items-center gap-1 px-3">
                 <Grid3X3 className="h-4 w-4" />
                 <span className="hidden sm:inline">히트맵</span>
-              </TabsTrigger>
-              <TabsTrigger value="radar" className="flex items-center gap-1 px-3">
-                <Radar className="h-4 w-4" />
-                <span className="hidden sm:inline">레이더</span>
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -456,16 +452,6 @@ export function TrackingTab() {
           title="LLM별 인용율 히트맵"
           description="날짜와 LLM에 따른 인용율을 색상으로 표시합니다. 셀을 클릭하면 상세 분석을 볼 수 있습니다."
           onCellClick={handleHeatmapCellClick}
-        />
-      )}
-
-      {/* 레이더 뷰 */}
-      {chartView === 'radar' && (
-        <RadarComparisonChart
-          data={trackingData}
-          compareMode="llm"
-          title="LLM 성능 비교"
-          description="각 LLM의 평균 인용률, 일관성, 데이터 양을 비교합니다"
         />
       )}
 
