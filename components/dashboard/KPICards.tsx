@@ -5,7 +5,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { TrendingUp, TrendingDown, Minus, Quote, Eye, Trophy, BarChart3 } from 'lucide-react'
 import { LineChart, Line, ResponsiveContainer } from 'recharts'
 import { cn } from '@/lib/utils'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, memo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Analysis } from '@/lib/supabase/types'
 
@@ -39,7 +39,7 @@ interface KPICardProps {
   invertTrend?: boolean
 }
 
-function KPICard({
+const KPICard = memo(function KPICard({
   title,
   value,
   subtitle,
@@ -135,7 +135,42 @@ function KPICard({
       </CardContent>
     </Card>
   )
-}
+}, (prevProps, nextProps) => {
+  // Custom comparison function for memo
+  // Return true if props are equal (skip re-render), false if different (re-render)
+
+  // Compare primitive props
+  if (
+    prevProps.title !== nextProps.title ||
+    prevProps.value !== nextProps.value ||
+    prevProps.subtitle !== nextProps.subtitle ||
+    prevProps.trend !== nextProps.trend ||
+    prevProps.trendLabel !== nextProps.trendLabel ||
+    prevProps.sparklineColor !== nextProps.sparklineColor ||
+    prevProps.loading !== nextProps.loading ||
+    prevProps.invertTrend !== nextProps.invertTrend
+  ) {
+    return false
+  }
+
+  // Compare sparklineData array by length and values
+  if (prevProps.sparklineData?.length !== nextProps.sparklineData?.length) {
+    return false
+  }
+
+  if (prevProps.sparklineData && nextProps.sparklineData) {
+    for (let i = 0; i < prevProps.sparklineData.length; i++) {
+      if (prevProps.sparklineData[i].value !== nextProps.sparklineData[i].value) {
+        return false
+      }
+    }
+  }
+
+  // Icon comparison (React elements are always different references, so we skip this)
+  // Icons are typically stable for each card type
+
+  return true
+})
 
 export function KPICards() {
   const [loading, setLoading] = useState(true)
@@ -181,43 +216,81 @@ export function KPICards() {
         const recentAnalyses = analyses.slice(0, Math.min(7, analyses.length))
         const olderAnalyses = analyses.slice(7, 14)
 
-        // 각 분석에서 인용율 계산
+        // 각 분석에서 인용율 계산 (summary 또는 citation_metrics 사용)
         const calculateCitationRate = (analysis: Analysis) => {
-          const results = analysis.results as unknown as Record<string, unknown> | null
-          if (!results) return 0
+          // 1. citation_metrics에서 가져오기
+          const citationMetrics = analysis.citation_metrics as {
+            myDomainStats?: { citationRate?: number }
+          } | null
+          if (citationMetrics?.myDomainStats?.citationRate !== undefined) {
+            return citationMetrics.myDomainStats.citationRate
+          }
 
-          let totalCitations = 0
-          let totalChecked = 0
-
-          Object.values(results).forEach((llmResult) => {
-            const result = llmResult as { citations?: Array<{ cited: boolean }> } | null
-            if (result?.citations) {
-              result.citations.forEach((citation: { cited: boolean }) => {
-                totalChecked++
-                if (citation.cited) totalCitations++
-              })
+          // 2. summary.citationRateByLLM에서 평균 계산
+          const summary = analysis.summary as {
+            citationRateByLLM?: Record<string, number | null>
+          } | null
+          if (summary?.citationRateByLLM) {
+            const rates = Object.values(summary.citationRateByLLM)
+              .filter((r): r is number => r !== null && r !== undefined)
+            if (rates.length > 0) {
+              return rates.reduce((a, b) => a + b, 0) / rates.length
             }
-          })
+          }
 
-          return totalChecked > 0 ? (totalCitations / totalChecked) * 100 : 0
+          return 0
         }
 
         // 브랜드 노출 계산 (LLM 커버리지)
         const calculateBrandExposure = (analysis: Analysis) => {
-          const results = analysis.results as unknown as Record<string, unknown> | null
-          if (!results) return 0
+          // 1. citation_metrics에서 가져오기
+          const citationMetrics = analysis.citation_metrics as {
+            brandMentionStats?: { mentionRate?: number }
+          } | null
+          if (citationMetrics?.brandMentionStats?.mentionRate !== undefined) {
+            return citationMetrics.brandMentionStats.mentionRate
+          }
 
-          let exposedLlms = 0
-          const llmKeys = ['perplexity', 'chatgpt', 'gemini', 'claude']
-
-          llmKeys.forEach((llm) => {
-            const llmResult = results[llm] as { citations?: Array<{ cited: boolean }> } | null
-            if (llmResult?.citations?.some((c: { cited: boolean }) => c.cited)) {
-              exposedLlms++
+          // 2. summary.brandMentionAnalysis에서 계산
+          const summary = analysis.summary as {
+            brandMentionAnalysis?: {
+              myBrand?: { mentionedInLLMs?: string[] }
             }
-          })
+            successfulLLMs?: string[]
+          } | null
+          if (summary?.brandMentionAnalysis?.myBrand?.mentionedInLLMs) {
+            const mentionedCount = summary.brandMentionAnalysis.myBrand.mentionedInLLMs.length
+            const totalLLMs = summary.successfulLLMs?.length || 3
+            return (mentionedCount / totalLLMs) * 100
+          }
 
-          return (exposedLlms / 4) * 100
+          return 0
+        }
+
+        // 경쟁사 순위 계산 (내 브랜드 언급 횟수 기준)
+        const calculateCompetitorRank = (analysis: Analysis): number | null => {
+          const summary = analysis.summary as {
+            brandMentionAnalysis?: {
+              myBrand?: { mentionCount?: number }
+              competitors?: Array<{ brand: string; mentionCount?: number }>
+            }
+          } | null
+
+          const myBrand = summary?.brandMentionAnalysis?.myBrand
+          const competitors = summary?.brandMentionAnalysis?.competitors
+
+          if (!myBrand?.mentionCount || !competitors || competitors.length === 0) {
+            return null
+          }
+
+          // 언급 횟수로 정렬하여 순위 계산
+          const allBrands = [
+            { brand: 'myBrand', count: myBrand.mentionCount },
+            ...competitors.map(c => ({ brand: c.brand, count: c.mentionCount || 0 }))
+          ].sort((a, b) => b.count - a.count)
+
+          const myRank = allBrands.findIndex(b => b.brand === 'myBrand') + 1
+          return myRank
         }
 
         // 최근 인용율 평균
@@ -252,6 +325,22 @@ export function KPICards() {
           ? ((avgBrandExposure - avgOlderBrand) / avgOlderBrand) * 100
           : 0
 
+        // 경쟁사 순위 계산
+        const recentRanks = recentAnalyses.map(calculateCompetitorRank).filter((r): r is number => r !== null)
+        const avgRecentRank = recentRanks.length > 0
+          ? Math.round(recentRanks.reduce((a, b) => a + b, 0) / recentRanks.length)
+          : 0
+
+        const olderRanks = olderAnalyses.map(calculateCompetitorRank).filter((r): r is number => r !== null)
+        const avgOlderRank = olderRanks.length > 0
+          ? olderRanks.reduce((a, b) => a + b, 0) / olderRanks.length
+          : avgRecentRank
+
+        // 순위는 낮을수록 좋으므로 트렌드 방향 반대
+        const rankTrend = avgOlderRank > 0 && avgRecentRank > 0
+          ? ((avgOlderRank - avgRecentRank) / avgOlderRank) * 100
+          : 0
+
         // 총 분석 수
         const { count: totalCount } = await supabase
           .from('analyses')
@@ -269,19 +358,25 @@ export function KPICards() {
         const citationSparkline = sparklineAnalyses.map(a => ({ value: calculateCitationRate(a) }))
         const brandSparkline = sparklineAnalyses.map(a => ({ value: calculateBrandExposure(a) }))
 
+        // 순위 스파크라인 데이터
+        const rankSparkline = sparklineAnalyses
+          .map(a => calculateCompetitorRank(a))
+          .filter((r): r is number => r !== null)
+          .map(r => ({ value: r }))
+
         setKpiData({
           citationRate: avgRecentCitation,
           citationTrend,
           brandExposure: avgBrandExposure,
           brandTrend,
-          competitorRank: 0, // TODO: 경쟁사 분석 데이터 필요
-          rankTrend: 0,
+          competitorRank: avgRecentRank,
+          rankTrend,
           totalAnalyses: totalCount || 0,
           successRate,
           sparklineData: {
             citation: citationSparkline,
             brand: brandSparkline,
-            rank: [],
+            rank: rankSparkline,
             analyses: sparklineAnalyses.map((_, i) => ({ value: i + 1 })),
           },
         })

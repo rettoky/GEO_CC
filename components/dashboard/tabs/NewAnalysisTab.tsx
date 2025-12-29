@@ -35,6 +35,9 @@ interface QueryResultHistory {
   timestamp: Date
 }
 
+// Maximum number of query results to keep in history (prevents memory leaks)
+const MAX_HISTORY_SIZE = 100
+
 export function NewAnalysisTab() {
   const router = useRouter()
   const { selectAnalysis, setActiveTab } = useDashboard()
@@ -95,7 +98,13 @@ export function NewAnalysisTab() {
           summary: result.data.summary,
           timestamp: new Date(),
         }
-        setQueryHistory((prev) => [...prev, historyEntry])
+        setQueryHistory((prev) => {
+          const updated = [...prev, historyEntry]
+          // Keep only the most recent MAX_HISTORY_SIZE entries to prevent memory leaks
+          return updated.length > MAX_HISTORY_SIZE
+            ? updated.slice(-MAX_HISTORY_SIZE)
+            : updated
+        })
       }
 
       toast({
