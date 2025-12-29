@@ -25,8 +25,8 @@ import {
 } from 'recharts'
 import { useTrackingSection } from '@/contexts/TrackingSectionContext'
 import { useTrackingAnalyses, type TrackingData } from '@/hooks/useTrackingAnalyses'
-import { Folder, TrendingUp, Grid3X3, BarChart3, Heart } from 'lucide-react'
-import { HeatmapChart, DrilldownModal, SentimentTrackingDashboard } from '@/components/tracking'
+import { Folder, TrendingUp, BarChart3, Heart } from 'lucide-react'
+import { CalendarHeatmap, SmallMultiplesChart, DrilldownModal, SentimentTrackingDashboard } from '@/components/tracking'
 import type { LLMType } from '@/lib/supabase/types'
 
 type AggregationType = 'daily' | 'weekly' | 'monthly'
@@ -87,7 +87,7 @@ function aggregateData(data: TrackingData[], aggregation: AggregationType): Trac
 export function TrackingTab() {
   const { selectedSectionId, sections } = useTrackingSection()
   const [dateRange, setDateRange] = useState<'7days' | '30days' | 'all'>('all')
-  const [chartView, setChartView] = useState<'basic' | 'heatmap' | 'sentiment'>('basic')
+  const [chartView, setChartView] = useState<'basic' | 'sentiment'>('basic')
   const [aggregation, setAggregation] = useState<AggregationType>('daily')
   const [drilldown, setDrilldown] = useState<{
     isOpen: boolean
@@ -159,16 +159,6 @@ export function TrackingTab() {
         createdAt: a.created_at,
       }))
   }, [analyses, drilldown.date])
-
-  // 히트맵 셀 클릭 핸들러
-  const handleHeatmapCellClick = (point: { date: string; llm: LLMType; value: number | null }) => {
-    if (point.value === null) return
-    setDrilldown({
-      isOpen: true,
-      date: point.date,
-      llm: point.llm,
-    })
-  }
 
   // 섹션이 선택되지 않은 경우
   if (!selectedSectionId) {
@@ -251,7 +241,7 @@ export function TrackingTab() {
         <div className="flex items-center gap-2 flex-wrap">
           {/* 차트 뷰 선택 */}
           <Tabs value={chartView} onValueChange={(v) => setChartView(v as typeof chartView)}>
-            <TabsList className="grid grid-cols-3 w-auto">
+            <TabsList className="grid grid-cols-2 w-auto">
               <TabsTrigger value="basic" className="flex items-center gap-1 px-3">
                 <BarChart3 className="h-4 w-4" />
                 <span className="hidden sm:inline">기본</span>
@@ -259,10 +249,6 @@ export function TrackingTab() {
               <TabsTrigger value="sentiment" className="flex items-center gap-1 px-3">
                 <Heart className="h-4 w-4" />
                 <span className="hidden sm:inline">감성</span>
-              </TabsTrigger>
-              <TabsTrigger value="heatmap" className="flex items-center gap-1 px-3">
-                <Grid3X3 className="h-4 w-4" />
-                <span className="hidden sm:inline">히트맵</span>
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -437,22 +423,26 @@ export function TrackingTab() {
               </div>
             </CardContent>
           </Card>
+
+          {/* LLM별 Small Multiples Chart */}
+          <SmallMultiplesChart
+            data={chartData}
+            title="LLM별 인용률 상세"
+            description="각 LLM의 인용률 추세를 개별 차트로 비교합니다"
+          />
+
+          {/* Calendar Heatmap */}
+          <CalendarHeatmap
+            data={trackingData}
+            title="분석 활동 캘린더"
+            description="날짜별 평균 인용률을 GitHub 스타일로 표시합니다"
+          />
         </>
       )}
 
       {/* 감성 분석 뷰 */}
       {chartView === 'sentiment' && (
         <SentimentTrackingDashboard data={chartData} />
-      )}
-
-      {/* 히트맵 뷰 */}
-      {chartView === 'heatmap' && (
-        <HeatmapChart
-          data={trackingData}
-          title="LLM별 인용율 히트맵"
-          description="날짜와 LLM에 따른 인용율을 색상으로 표시합니다. 셀을 클릭하면 상세 분석을 볼 수 있습니다."
-          onCellClick={handleHeatmapCellClick}
-        />
       )}
 
       {/* 드릴다운 모달 */}

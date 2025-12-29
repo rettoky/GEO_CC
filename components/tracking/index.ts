@@ -3,7 +3,8 @@
  * 트래킹 관련 시각화 컴포넌트 모음
  */
 
-export { HeatmapChart } from './HeatmapChart'
+export { CalendarHeatmap } from './CalendarHeatmap'
+export { SmallMultiplesChart } from './SmallMultiplesChart'
 export { DrilldownModal } from './DrilldownModal'
 export {
   SentimentScoreChart,
