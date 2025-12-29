@@ -63,8 +63,8 @@ export function RadarComparisonChart({
   className,
 }: RadarChartProps) {
   // LLM 비교 모드: 각 LLM의 평균 성능을 레이더 차트로 표시
-  const llmRadarData = useMemo(() => {
-    if (compareMode !== 'llm' || data.length === 0) return null
+  const { llmRadarData, radarDomain } = useMemo(() => {
+    if (compareMode !== 'llm' || data.length === 0) return { llmRadarData: null, radarDomain: [0, 100] as [number, number] }
 
     // 각 LLM별 평균 계산
     const llmStats = ACTIVE_LLMS.map(llm => {
@@ -75,30 +75,37 @@ export function RadarComparisonChart({
         : 50
       return {
         llm,
-        avgCitationRate: Math.round(avg),
+        avgCitationRate: Math.round(avg * 10) / 10,
         consistency: Math.max(0, Math.min(100, Math.round(consistency))),
         dataPoints: values.length,
       }
     })
 
-    // 레이더 차트용 데이터 포맷
+    // 최대값 계산 (모든 메트릭 포함)
+    const maxCitationRate = Math.max(...llmStats.map(s => s.avgCitationRate), 1)
+    const maxDataPoints = Math.max(...llmStats.map(s => s.dataPoints), 1)
+    const maxConsistency = Math.max(...llmStats.map(s => s.consistency), 1)
+
+    // 동적 범위 계산 - 최대값의 120%를 상한으로, 10 단위 올림
+    const overallMax = Math.max(maxCitationRate, maxConsistency)
+    const dynamicMax = Math.ceil((overallMax * 1.2) / 10) * 10
+
+    // 레이더 차트용 데이터 포맷 (모든 값을 정규화)
     const metrics = [
       { metric: 'citationRate', label: '인용률' },
       { metric: 'consistency', label: '일관성' },
       { metric: 'dataPoints', label: '데이터 양' },
     ]
 
-    // 데이터 포인트 정규화 (최대값 기준 100)
-    const maxDataPoints = Math.max(...llmStats.map(s => s.dataPoints), 1)
-
-    return metrics.map(m => {
+    const radarData = metrics.map(m => {
       const point: Record<string, string | number> = {
         metric: m.label,
-        fullMark: 100,
+        fullMark: dynamicMax,
       }
       llmStats.forEach(stat => {
         if (m.metric === 'dataPoints') {
-          point[stat.llm] = Math.round((stat.dataPoints / maxDataPoints) * 100)
+          // 데이터 양은 동적 범위에 맞게 정규화
+          point[stat.llm] = Math.round((stat.dataPoints / maxDataPoints) * dynamicMax)
         } else if (m.metric === 'citationRate') {
           point[stat.llm] = stat.avgCitationRate
         } else {
@@ -107,6 +114,8 @@ export function RadarComparisonChart({
       })
       return point
     })
+
+    return { llmRadarData: radarData, radarDomain: [0, dynamicMax] as [number, number] }
   }, [data, compareMode])
 
   // 날짜 비교 모드: 선택된 날짜들의 성능을 비교
@@ -178,8 +187,9 @@ export function RadarComparisonChart({
               />
               <PolarRadiusAxis
                 angle={30}
-                domain={[0, 100]}
+                domain={compareMode === 'llm' ? radarDomain : [0, 100]}
                 tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
+                tickCount={5}
               />
               {series.map((key, idx) => {
                 const color = compareMode === 'llm'

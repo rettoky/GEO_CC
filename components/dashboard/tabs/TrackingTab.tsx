@@ -107,9 +107,9 @@ export function TrackingTab() {
     return aggregateData(trackingData, aggregation)
   }, [trackingData, aggregation])
 
-  // Y축 동적 범위 계산 (데이터 최대값 기준 + 여유분)
-  const yAxisDomain = useMemo(() => {
-    if (chartData.length === 0) return [0, 100]
+  // Y축 동적 범위 계산 (데이터에 밀착 + 약간의 여유)
+  const yAxisDomain = useMemo((): [number, number] => {
+    if (chartData.length === 0) return [0, 50]
 
     const allValues = chartData.flatMap(d => [
       d.citationRate,
@@ -117,14 +117,19 @@ export function TrackingTab() {
       d.perplexity,
       d.chatgpt,
       d.gemini,
-    ]).filter(v => v > 0)
+    ]).filter(v => v !== null && v !== undefined)
 
-    if (allValues.length === 0) return [0, 100]
+    if (allValues.length === 0) return [0, 50]
 
     const maxValue = Math.max(...allValues)
-    // 최대값의 120%를 상한으로, 10 단위로 올림
-    const upperBound = Math.ceil((maxValue * 1.2) / 10) * 10
-    return [0, Math.max(upperBound, 20)] // 최소 20%
+    const minValue = Math.min(...allValues)
+
+    // 상한: 최대값 + 10% 여유, 5 단위로 올림
+    const upperBound = Math.ceil((maxValue * 1.1) / 5) * 5
+    // 하한: 최소값이 10% 이상이면 약간 내려서 시작
+    const lowerBound = minValue > 10 ? Math.floor((minValue * 0.8) / 5) * 5 : 0
+
+    return [lowerBound, Math.max(upperBound, lowerBound + 20)]
   }, [chartData])
 
   // 드릴다운용 분석 데이터 필터링
