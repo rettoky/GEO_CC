@@ -123,61 +123,100 @@ export function useTrackingAnalyses({
         }
 
         const entry = dateMap.get(date)!
-        const results = analysis.results as unknown as Record<string, unknown>
-
-        // 인용율 계산
-        let totalCitations = 0
-        let totalChecked = 0
         const llmTypes: LLMType[] = ['perplexity', 'chatgpt', 'gemini', 'claude']
 
-        llmTypes.forEach((llm) => {
-          const llmResult = results?.[llm] as { citations?: Array<{ cited: boolean }> } | null
-          if (llmResult?.citations) {
-            const cited = llmResult.citations.filter((c: { cited: boolean }) => c.cited).length
-            const total = llmResult.citations.length
-            totalCitations += cited
-            totalChecked += total
+        // summary에서 인용률 가져오기
+        const summary = analysis.summary as {
+          citationRateByLLM?: Record<LLMType, number | null>
+          myDomainCited?: boolean
+          successfulLLMs?: LLMType[]
+          brandMentionAnalysis?: { myBrand?: { sentimentAnalysis?: BrandMentionSentiment[], mentionedInLLMs?: LLMType[] } }
+        } | null
 
-            // LLM별 인용율
-            if (total > 0) {
-              entry.llmRates[llm].push((cited / total) * 100)
-            }
-          }
-        })
-
-        if (totalChecked > 0) {
-          entry.citationRates.push((totalCitations / totalChecked) * 100)
-        }
-
-        // 브랜드 노출률 계산
-        let exposedLlms = 0
-        llmTypes.forEach((llm) => {
-          const llmResult = results?.[llm] as { citations?: Array<{ cited: boolean }> } | null
-          if (llmResult?.citations?.some((c: { cited: boolean }) => c.cited)) {
-            exposedLlms++
-          }
-        })
-        entry.brandRates.push((exposedLlms / 4) * 100)
-
-        // 감성 분석 데이터 수집 (summary에서 직접 가져오기)
-        const summary = analysis.summary as { brandMentionAnalysis?: { myBrand?: { sentimentAnalysis?: BrandMentionSentiment[] } } } | null
-        const sentimentData = summary?.brandMentionAnalysis?.myBrand?.sentimentAnalysis
-        if (sentimentData && sentimentData.length > 0) {
-          entry.sentiments.push(...sentimentData)
-        }
-
-        // intermediate_results에서도 감성 분석 데이터 수집 (배치 분석의 경우)
+        // intermediate_results에서 배치 분석 결과 가져오기
         const intermediateResults = analysis.intermediate_results as {
           allQueryResults?: Array<{
-            summary?: { brandMentionAnalysis?: { myBrand?: { sentimentAnalysis?: BrandMentionSentiment[] } } }
+            summary?: {
+              citationRateByLLM?: Record<LLMType, number | null>
+              myDomainCited?: boolean
+              successfulLLMs?: LLMType[]
+              brandMentionAnalysis?: { myBrand?: { sentimentAnalysis?: BrandMentionSentiment[], mentionedInLLMs?: LLMType[] } }
+            }
           }>
         } | null
-        if (intermediateResults?.allQueryResults) {
+
+        // 배치 분석인 경우 각 쿼리 결과를 처리
+        if (intermediateResults?.allQueryResults && intermediateResults.allQueryResults.length > 0) {
           for (const queryResult of intermediateResults.allQueryResults) {
-            const querySentiment = queryResult.summary?.brandMentionAnalysis?.myBrand?.sentimentAnalysis
+            const querySummary = queryResult.summary
+            if (!querySummary) continue
+
+            // LLM별 인용률 수집
+            if (querySummary.citationRateByLLM) {
+              llmTypes.forEach(llm => {
+                const rate = querySummary.citationRateByLLM?.[llm]
+                if (rate !== null && rate !== undefined) {
+                  entry.llmRates[llm].push(rate)
+                }
+              })
+
+              // 전체 인용률 (LLM별 평균)
+              const validRates = llmTypes
+                .map(llm => querySummary.citationRateByLLM?.[llm])
+                .filter((r): r is number => r !== null && r !== undefined)
+              if (validRates.length > 0) {
+                entry.citationRates.push(validRates.reduce((a, b) => a + b, 0) / validRates.length)
+              }
+            }
+
+            // 브랜드 노출률 계산 (브랜드가 언급된 LLM 수 / 전체 LLM 수)
+            const mentionedInLLMs = querySummary.brandMentionAnalysis?.myBrand?.mentionedInLLMs || []
+            if (mentionedInLLMs.length > 0 || querySummary.myDomainCited) {
+              const successfulLLMs = querySummary.successfulLLMs || []
+              const totalLLMs = successfulLLMs.length || 3 // 기본 3개 (perplexity, chatgpt, gemini)
+              const exposedCount = mentionedInLLMs.length || (querySummary.myDomainCited ? 1 : 0)
+              entry.brandRates.push((exposedCount / totalLLMs) * 100)
+            }
+
+            // 감성 분석 데이터 수집
+            const querySentiment = querySummary.brandMentionAnalysis?.myBrand?.sentimentAnalysis
             if (querySentiment && querySentiment.length > 0) {
               entry.sentiments.push(...querySentiment)
             }
+          }
+        } else if (summary) {
+          // 단일 쿼리 분석인 경우
+          // LLM별 인용률 수집
+          if (summary.citationRateByLLM) {
+            llmTypes.forEach(llm => {
+              const rate = summary.citationRateByLLM?.[llm]
+              if (rate !== null && rate !== undefined) {
+                entry.llmRates[llm].push(rate)
+              }
+            })
+
+            // 전체 인용률
+            const validRates = llmTypes
+              .map(llm => summary.citationRateByLLM?.[llm])
+              .filter((r): r is number => r !== null && r !== undefined)
+            if (validRates.length > 0) {
+              entry.citationRates.push(validRates.reduce((a, b) => a + b, 0) / validRates.length)
+            }
+          }
+
+          // 브랜드 노출률 계산
+          const mentionedInLLMs = summary.brandMentionAnalysis?.myBrand?.mentionedInLLMs || []
+          if (mentionedInLLMs.length > 0 || summary.myDomainCited) {
+            const successfulLLMs = summary.successfulLLMs || []
+            const totalLLMs = successfulLLMs.length || 3
+            const exposedCount = mentionedInLLMs.length || (summary.myDomainCited ? 1 : 0)
+            entry.brandRates.push((exposedCount / totalLLMs) * 100)
+          }
+
+          // 감성 분석 데이터 수집
+          const sentimentData = summary.brandMentionAnalysis?.myBrand?.sentimentAnalysis
+          if (sentimentData && sentimentData.length > 0) {
+            entry.sentiments.push(...sentimentData)
           }
         }
       })
