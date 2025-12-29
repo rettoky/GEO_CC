@@ -14,8 +14,8 @@ import {
 import {
   LineChart,
   Line,
-  BarChart,
-  Bar,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -24,15 +24,71 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import { useTrackingSection } from '@/contexts/TrackingSectionContext'
-import { useTrackingAnalyses } from '@/hooks/useTrackingAnalyses'
+import { useTrackingAnalyses, type TrackingData } from '@/hooks/useTrackingAnalyses'
 import { Folder, TrendingUp, Grid3X3, Radar, BarChart3, Heart } from 'lucide-react'
 import { HeatmapChart, RadarComparisonChart, DrilldownModal, SentimentTrackingDashboard } from '@/components/tracking'
 import type { LLMType } from '@/lib/supabase/types'
+
+type AggregationType = 'daily' | 'weekly' | 'monthly'
+
+// 데이터 집계 함수
+function aggregateData(data: TrackingData[], aggregation: AggregationType): TrackingData[] {
+  if (aggregation === 'daily' || data.length <= 7) {
+    return data
+  }
+
+  const groupedData = new Map<string, TrackingData[]>()
+
+  data.forEach(item => {
+    // MM/dd 형식에서 그룹 키 생성
+    const [month, day] = item.date.split('/')
+    let groupKey: string
+
+    if (aggregation === 'weekly') {
+      // 주차 계산 (7일 단위)
+      const dayNum = parseInt(day)
+      const weekNum = Math.ceil(dayNum / 7)
+      groupKey = `${month}월 ${weekNum}주`
+    } else {
+      // 월별 집계
+      groupKey = `${month}월`
+    }
+
+    if (!groupedData.has(groupKey)) {
+      groupedData.set(groupKey, [])
+    }
+    groupedData.get(groupKey)!.push(item)
+  })
+
+  // 그룹별 평균 계산
+  return Array.from(groupedData.entries()).map(([key, items]) => {
+    const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0
+    const sum = (arr: number[]) => arr.reduce((a, b) => a + b, 0)
+
+    return {
+      date: key,
+      citationRate: Math.round(avg(items.map(i => i.citationRate)) * 10) / 10,
+      brandExposure: Math.round(avg(items.map(i => i.brandExposure)) * 10) / 10,
+      perplexity: Math.round(avg(items.map(i => i.perplexity)) * 10) / 10,
+      chatgpt: Math.round(avg(items.map(i => i.chatgpt)) * 10) / 10,
+      gemini: Math.round(avg(items.map(i => i.gemini)) * 10) / 10,
+      claude: Math.round(avg(items.map(i => i.claude)) * 10) / 10,
+      sentiment: {
+        positive: sum(items.map(i => i.sentiment.positive)),
+        negative: sum(items.map(i => i.sentiment.negative)),
+        neutral: sum(items.map(i => i.sentiment.neutral)),
+        total: sum(items.map(i => i.sentiment.total)),
+        score: Math.round(avg(items.map(i => i.sentiment.score))),
+      },
+    }
+  })
+}
 
 export function TrackingTab() {
   const { selectedSectionId, sections } = useTrackingSection()
   const [dateRange, setDateRange] = useState<'7days' | '30days' | 'all'>('30days')
   const [chartView, setChartView] = useState<'basic' | 'heatmap' | 'radar' | 'sentiment'>('basic')
+  const [aggregation, setAggregation] = useState<AggregationType>('daily')
   const [drilldown, setDrilldown] = useState<{
     isOpen: boolean
     date?: string
@@ -45,6 +101,11 @@ export function TrackingTab() {
   })
 
   const selectedSection = sections.find(s => s.id === selectedSectionId)
+
+  // 집계된 차트 데이터
+  const chartData = useMemo(() => {
+    return aggregateData(trackingData, aggregation)
+  }, [trackingData, aggregation])
 
   // 드릴다운용 분석 데이터 필터링
   const drilldownAnalyses = useMemo(() => {
@@ -162,7 +223,7 @@ export function TrackingTab() {
             </>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {/* 차트 뷰 선택 */}
           <Tabs value={chartView} onValueChange={(v) => setChartView(v as typeof chartView)}>
             <TabsList className="grid grid-cols-4 w-auto">
@@ -184,6 +245,17 @@ export function TrackingTab() {
               </TabsTrigger>
             </TabsList>
           </Tabs>
+          {/* 집계 단위 */}
+          <Select value={aggregation} onValueChange={(value) => setAggregation(value as AggregationType)}>
+            <SelectTrigger className="w-24">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="daily">일별</SelectItem>
+              <SelectItem value="weekly">주별</SelectItem>
+              <SelectItem value="monthly">월별</SelectItem>
+            </SelectContent>
+          </Select>
           {/* 기간 필터 */}
           <Select value={dateRange} onValueChange={(value) => setDateRange(value as typeof dateRange)}>
             <SelectTrigger className="w-28">
@@ -205,17 +277,23 @@ export function TrackingTab() {
           <Card>
             <CardHeader>
               <CardTitle>인용율 추세</CardTitle>
-              <CardDescription>시간에 따른 내 도메인/브랜드 인용율 변화</CardDescription>
+              <CardDescription>
+                시간에 따른 내 도메인/브랜드 인용율 변화
+                {chartData.length !== trackingData.length && (
+                  <span className="ml-2 text-xs">({trackingData.length}개 → {chartData.length}개 집계)</span>
+                )}
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={trackingData}>
+                  <LineChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                     <XAxis
                       dataKey="date"
-                      tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                      tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
                       tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
+                      interval={chartData.length > 15 ? Math.floor(chartData.length / 10) : 0}
                     />
                     <YAxis
                       tick={{ fill: 'hsl(var(--muted-foreground))' }}
@@ -238,7 +316,7 @@ export function TrackingTab() {
                       name="인용율"
                       stroke="#22c55e"
                       strokeWidth={2}
-                      dot={{ fill: '#22c55e', strokeWidth: 2 }}
+                      dot={chartData.length <= 30}
                       activeDot={{ r: 6 }}
                     />
                     <Line
@@ -247,7 +325,7 @@ export function TrackingTab() {
                       name="브랜드 노출률"
                       stroke="#3b82f6"
                       strokeWidth={2}
-                      dot={{ fill: '#3b82f6', strokeWidth: 2 }}
+                      dot={chartData.length <= 30}
                       activeDot={{ r: 6 }}
                     />
                   </LineChart>
@@ -256,21 +334,36 @@ export function TrackingTab() {
             </CardContent>
           </Card>
 
-          {/* LLM별 비교 차트 */}
+          {/* LLM별 비교 차트 - Area Chart로 변경 */}
           <Card>
             <CardHeader>
-              <CardTitle>LLM별 인용율 비교</CardTitle>
-              <CardDescription>각 LLM에서의 인용율 추세</CardDescription>
+              <CardTitle>LLM별 인용율 추세</CardTitle>
+              <CardDescription>각 LLM에서의 인용율 변화 추이</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={trackingData}>
+                  <AreaChart data={chartData}>
+                    <defs>
+                      <linearGradient id="colorPerplexity" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                      </linearGradient>
+                      <linearGradient id="colorChatGPT" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#22c55e" stopOpacity={0}/>
+                      </linearGradient>
+                      <linearGradient id="colorGemini" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                     <XAxis
                       dataKey="date"
-                      tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                      tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
                       tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
+                      interval={chartData.length > 15 ? Math.floor(chartData.length / 10) : 0}
                     />
                     <YAxis
                       tick={{ fill: 'hsl(var(--muted-foreground))' }}
@@ -287,10 +380,34 @@ export function TrackingTab() {
                       formatter={(value: number) => [`${value}%`, '']}
                     />
                     <Legend />
-                    <Bar dataKey="perplexity" name="Perplexity" fill="#8b5cf6" />
-                    <Bar dataKey="chatgpt" name="ChatGPT" fill="#22c55e" />
-                    <Bar dataKey="gemini" name="Gemini" fill="#3b82f6" />
-                  </BarChart>
+                    <Area
+                      type="monotone"
+                      dataKey="perplexity"
+                      name="Perplexity"
+                      stroke="#8b5cf6"
+                      strokeWidth={2}
+                      fillOpacity={1}
+                      fill="url(#colorPerplexity)"
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="chatgpt"
+                      name="ChatGPT"
+                      stroke="#22c55e"
+                      strokeWidth={2}
+                      fillOpacity={1}
+                      fill="url(#colorChatGPT)"
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="gemini"
+                      name="Gemini"
+                      stroke="#3b82f6"
+                      strokeWidth={2}
+                      fillOpacity={1}
+                      fill="url(#colorGemini)"
+                    />
+                  </AreaChart>
                 </ResponsiveContainer>
               </div>
             </CardContent>
