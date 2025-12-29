@@ -102,7 +102,7 @@ export function SmallMultiplesChart({
       </CardHeader>
 
       <CardContent className="pt-2">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4">
           {llmStats.map((llm) => (
             <div
               key={llm.key}
@@ -134,7 +134,7 @@ export function SmallMultiplesChart({
               </div>
 
               {/* 미니 라인 차트 */}
-              <div className="h-[100px]">
+              <div className="h-[140px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart
                     data={data}

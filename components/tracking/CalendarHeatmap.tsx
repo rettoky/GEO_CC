@@ -67,14 +67,14 @@ export function CalendarHeatmap({
     return map
   }, [data])
 
-  // 캘린더 그리드 생성 (최근 12주)
+  // 캘린더 그리드 생성 (최근 16주)
   const calendarWeeks = useMemo(() => {
     const weeks: Array<Array<{ date: Date; dateStr: string; data: TrackingData | null }>> = []
     const today = new Date()
 
-    // 12주 전부터 시작
+    // 16주 전부터 시작
     const startDate = new Date(today)
-    startDate.setDate(startDate.getDate() - 83) // 12주 = 84일
+    startDate.setDate(startDate.getDate() - 111) // 16주 = 112일
     // 일요일로 조정
     startDate.setDate(startDate.getDate() - startDate.getDay())
 

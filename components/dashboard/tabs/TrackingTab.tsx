@@ -424,19 +424,21 @@ export function TrackingTab() {
             </CardContent>
           </Card>
 
-          {/* LLM별 Small Multiples Chart */}
-          <SmallMultiplesChart
-            data={chartData}
-            title="LLM별 인용률 상세"
-            description="각 LLM의 인용률 추세를 개별 차트로 비교합니다"
-          />
-
-          {/* Calendar Heatmap */}
-          <CalendarHeatmap
-            data={trackingData}
-            title="분석 활동 캘린더"
-            description="날짜별 평균 인용률을 GitHub 스타일로 표시합니다"
-          />
+          {/* LLM별 Small Multiples + Calendar Heatmap 가로 배치 */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <SmallMultiplesChart
+              data={chartData}
+              title="LLM별 인용률 상세"
+              description="각 LLM의 인용률 추세를 개별 차트로 비교합니다"
+              className="h-full"
+            />
+            <CalendarHeatmap
+              data={trackingData}
+              title="분석 활동 캘린더"
+              description="날짜별 평균 인용률을 GitHub 스타일로 표시합니다"
+              className="h-full"
+            />
+          </div>
         </>
       )}
 
