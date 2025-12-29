@@ -29,6 +29,44 @@ export interface BatchAnalysisProgress {
 
 export type ProgressCallback = (progress: BatchAnalysisProgress) => void
 
+// Supabase 분석 레코드 타입
+interface AnalysisRecord {
+  id: string
+  query_text: string
+  my_domain: string | null
+  my_brand: string | null
+  status: 'pending' | 'processing' | 'completed' | 'failed'
+  base_query: string
+  query_variations_count: number
+  total_queries_analyzed: number
+  section_id: string | null
+  results?: AnalysisResults
+  summary?: AnalysisSummary
+  intermediate_results?: {
+    allQueryResults: QueryAnalysisResult[]
+    baseQueryResult?: QueryAnalysisResult
+    variationResults: QueryAnalysisResult[]
+  }
+  citation_metrics?: AggregatedMetrics
+  visualization_data?: VisualizationData
+  completed_at?: string
+  error_message?: string
+  created_at?: string
+  updated_at?: string
+}
+
+// 분석 레코드 삽입 페이로드
+interface AnalysisInsertPayload {
+  query_text: string
+  my_domain: string | null
+  my_brand: string | null
+  status: 'processing'
+  base_query: string
+  query_variations_count: number
+  total_queries_analyzed: number
+  section_id: string | null
+}
+
 // 개별 쿼리 분석 결과
 interface QueryAnalysisResult {
   query: string
@@ -84,6 +122,93 @@ interface AggregatedMetrics {
   }[]
 }
 
+// 시각화 데이터 타입
+interface VisualizationData {
+  citationRateChart: {
+    llm: LLMType
+    avgRate: number
+    myDomainCited: number
+    totalQueries: number
+  }[]
+  queryHeatmap: {
+    index: number
+    query: string
+    queryType: 'base' | 'variation'
+    variationType?: string
+    perplexity: number | null
+    chatgpt: number | null
+    gemini: number | null
+    claude: number | null
+    myDomainCited: boolean
+    brandMentioned: boolean
+  }[]
+  topDomainsChart: {
+    domain: string
+    count: number
+    percentage: number
+  }[]
+  queryTypeChart: {
+    type: string
+    avgCitationRate: number
+    avgBrandMentionRate: number
+    count: number
+  }[]
+  summaryCards: {
+    totalQueries: number
+    successRate: number
+    myDomainCitationRate: number
+    brandMentionRate: number
+    bestPerformingLLM: string
+    topDomain: string
+  }
+}
+
+// Edge Function 응답 타입
+interface EdgeFunctionSuccessResponse {
+  success: true
+  data: {
+    results: AnalysisResults
+    summary: AnalysisSummary
+  }
+}
+
+interface EdgeFunctionErrorResponse {
+  success: false
+  error?: {
+    message?: string
+  }
+}
+
+type EdgeFunctionResponse = EdgeFunctionSuccessResponse | EdgeFunctionErrorResponse
+
+// Supabase 업데이트 페이로드 타입들
+interface BaseAnalysisUpdatePayload {
+  results: AnalysisResults
+  summary: AnalysisSummary
+}
+
+interface FailedAnalysisUpdatePayload {
+  status: 'failed'
+  error_message: string
+}
+
+interface FinalAnalysisUpdatePayload {
+  status: 'completed'
+  completed_at: string
+  intermediate_results: {
+    allQueryResults: QueryAnalysisResult[]
+    baseQueryResult?: QueryAnalysisResult
+    variationResults: QueryAnalysisResult[]
+  }
+  citation_metrics: AggregatedMetrics
+  visualization_data: VisualizationData
+}
+
+/**
+ * Supabase 클라이언트 헬퍼 함수
+ * 타입이 생성되지 않은 경우를 처리하기 위해 명시적 타입과 함께 사용
+ */
+
 /**
  * 여러 쿼리 변형에 대해 순차적으로 분석 수행
  * 베이스 쿼리 + 모든 변형 쿼리를 분석하고 종합 결과 생성
@@ -111,21 +236,24 @@ export async function analyzeBatchVariations(
     message: 'Supabase에 분석 레코드 생성 중...',
   })
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: analysisRecord, error: createError } = await (supabase as any)
+  const insertPayload: AnalysisInsertPayload = {
+    query_text: baseQuery,
+    my_domain: myDomain || null,
+    my_brand: myBrand || null,
+    status: 'processing',
+    base_query: baseQuery,
+    query_variations_count: variations.length,
+    total_queries_analyzed: totalQueries,
+    section_id: sectionId || null,
+  }
+
+  // Supabase 타입이 생성되지 않은 경우를 위해 명시적 타입 단언 사용
+  // 페이로드는 AnalysisInsertPayload 인터페이스로 타입 체크됨
+  const { data: analysisRecord, error: createError } = (await supabase
     .from('analyses')
-    .insert({
-      query_text: baseQuery,
-      my_domain: myDomain || null,
-      my_brand: myBrand || null,
-      status: 'processing',
-      base_query: baseQuery,
-      query_variations_count: variations.length,
-      total_queries_analyzed: totalQueries,
-      section_id: sectionId || null,
-    })
+    .insert(insertPayload as never) // Supabase 생성 타입 부재 우회
     .select()
-    .single()
+    .single()) as { data: AnalysisRecord | null; error: Error | null }
 
   if (createError || !analysisRecord) {
     throw new Error(`분석 레코드 생성 실패: ${createError?.message}`)
@@ -160,8 +288,14 @@ export async function analyzeBatchVariations(
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any).from('analyses').update({ status: 'failed', error_message: 'Supabase credentials not configured' }).eq('id', analysisId)
+    const failedPayload: FailedAnalysisUpdatePayload = {
+      status: 'failed',
+      error_message: 'Supabase credentials not configured'
+    }
+    await supabase
+      .from('analyses')
+      .update(failedPayload as never) // Supabase 생성 타입 부재 우회
+      .eq('id', analysisId)
     throw new Error('Supabase credentials not configured')
   }
 
@@ -190,13 +324,13 @@ export async function analyzeBatchVariations(
 
       // 베이스 쿼리 결과를 analyses.results와 analyses.summary에 저장
       console.log('[BatchAnalysis] Saving base query results to DB')
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error: baseUpdateError } = await (supabase as any)
+      const baseUpdatePayload: BaseAnalysisUpdatePayload = {
+        results: baseResult.data.results,
+        summary: baseResult.data.summary,
+      }
+      const { error: baseUpdateError } = await supabase
         .from('analyses')
-        .update({
-          results: baseResult.data.results,
-          summary: baseResult.data.summary,
-        })
+        .update(baseUpdatePayload as never) // Supabase 생성 타입 부재 우회
         .eq('id', analysisId)
 
       if (baseUpdateError) {
@@ -271,7 +405,7 @@ export async function analyzeBatchVariations(
     })
 
     // 5. 최종 결과 저장
-    const updatePayload = {
+    const updatePayload: FinalAnalysisUpdatePayload = {
       status: 'completed',
       completed_at: new Date().toISOString(),
       intermediate_results: {
@@ -285,10 +419,9 @@ export async function analyzeBatchVariations(
 
     console.log('[BatchAnalysis] Updating analysis record:', analysisId)
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: finalUpdateError } = await (supabase as any)
+    const { error: finalUpdateError } = await supabase
       .from('analyses')
-      .update(updatePayload)
+      .update(updatePayload as never) // Supabase 생성 타입 부재 우회
       .eq('id', analysisId)
 
     if (finalUpdateError) {
@@ -314,13 +447,13 @@ export async function analyzeBatchVariations(
       visualizationData,
     }
   } catch (error) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any)
+    const errorPayload: FailedAnalysisUpdatePayload = {
+      status: 'failed',
+      error_message: error instanceof Error ? error.message : 'Unknown error',
+    }
+    await supabase
       .from('analyses')
-      .update({
-        status: 'failed',
-        error_message: error instanceof Error ? error.message : 'Unknown error',
-      })
+      .update(errorPayload as never) // Supabase 생성 타입 부재 우회
       .eq('id', analysisId)
     throw error
   }
@@ -360,18 +493,18 @@ async function analyzeQuery(
       return { success: false, error: `HTTP ${response.status}: ${response.statusText}` }
     }
 
-    const data = await response.json()
+    const data: unknown = await response.json()
+
+    // 타입 가드를 통한 응답 검증
+    if (!isEdgeFunctionResponse(data)) {
+      console.error('[BatchAnalysis] Invalid Edge Function response format:', data)
+      return { success: false, error: 'Invalid Edge Function response format' }
+    }
 
     // Edge Function이 success: false를 반환한 경우 처리
     if (!data.success) {
       console.error('[BatchAnalysis] Edge Function returned failure:', data.error)
       return { success: false, error: data.error?.message || 'Edge Function returned failure' }
-    }
-
-    // data.data가 없는 경우 처리
-    if (!data.data || !data.data.results) {
-      console.error('[BatchAnalysis] Edge Function returned empty data:', data)
-      return { success: false, error: 'Edge Function returned empty data' }
     }
 
     // 모든 LLM이 실패한 경우 로그
@@ -382,6 +515,33 @@ async function analyzeQuery(
     return { success: true, data: { results: data.data.results, summary: data.data.summary } }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+  }
+}
+
+/**
+ * Edge Function 응답 타입 가드
+ */
+function isEdgeFunctionResponse(data: unknown): data is EdgeFunctionResponse {
+  if (typeof data !== 'object' || data === null) {
+    return false
+  }
+
+  const response = data as Record<string, unknown>
+
+  if (typeof response.success !== 'boolean') {
+    return false
+  }
+
+  if (response.success === true) {
+    // 성공 응답 검증
+    if (typeof response.data !== 'object' || response.data === null) {
+      return false
+    }
+    const responseData = response.data as Record<string, unknown>
+    return typeof responseData.results === 'object' && typeof responseData.summary === 'object'
+  } else {
+    // 실패 응답은 error 필드가 선택적
+    return true
   }
 }
 
