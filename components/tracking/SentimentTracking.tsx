@@ -155,15 +155,23 @@ export function SentimentDistributionChart({ data }: SentimentTrackingProps) {
     total: d.sentiment.total,
   }))
 
-  // Y축 동적 범위 계산
-  const yAxisMax = useMemo(() => {
-    const totals = chartData.map(d => d.total)
-    const maxTotal = Math.max(...totals, 1)
-    return Math.ceil(maxTotal * 1.2 / 5) * 5 // 5 단위로 올림
-  }, [chartData])
-
   // 데이터가 많으면 영역 차트로 표시
   const useAreaChart = chartData.length > 20
+
+  // Y축 동적 범위 계산 - 차트 타입에 따라 다르게 계산
+  const yAxisMax = useMemo(() => {
+    if (useAreaChart) {
+      // 라인 차트: 개별 감성 값의 최대값 기준
+      const allValues = chartData.flatMap(d => [d.긍정, d.부정, d.중립])
+      const maxValue = Math.max(...allValues, 1)
+      return Math.ceil(maxValue * 1.2 / 5) * 5
+    } else {
+      // 스택 바 차트: total 기준
+      const totals = chartData.map(d => d.total)
+      const maxTotal = Math.max(...totals, 1)
+      return Math.ceil(maxTotal * 1.2 / 5) * 5
+    }
+  }, [chartData, useAreaChart])
 
   return (
     <Card>

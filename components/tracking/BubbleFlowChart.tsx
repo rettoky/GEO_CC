@@ -121,26 +121,42 @@ export function BubbleFlowChart({
     return bubbles
   }, [analyses, timeMode])
 
-  // Min-Max 정규화를 위한 범위 계산
-  const { minRate, maxRate } = useMemo(() => {
-    if (bubbleData.length === 0) return { minRate: 0, maxRate: 50 }
-    const rates = bubbleData.map(d => d.citationRate)
-    return {
-      minRate: Math.min(...rates),
-      maxRate: Math.max(...rates),
-    }
+  // LLM별 Min-Max 정규화를 위한 범위 계산
+  const llmRanges = useMemo(() => {
+    const ranges: Record<string, { min: number; max: number }> = {}
+    const llmTypes = ['perplexity', 'chatgpt', 'gemini']
+
+    llmTypes.forEach(llm => {
+      const llmRates = bubbleData
+        .filter(d => d.llm === llm)
+        .map(d => d.citationRate)
+
+      if (llmRates.length === 0) {
+        ranges[llm] = { min: 0, max: 50 }
+      } else {
+        ranges[llm] = {
+          min: Math.min(...llmRates),
+          max: Math.max(...llmRates),
+        }
+      }
+    })
+
+    return ranges
   }, [bubbleData])
 
-  // 버블 반지름 계산 - 순수 Min-Max 정규화
-  const getBubbleRadius = (rate: number) => {
+  // 버블 반지름 계산 - LLM별 Min-Max 정규화
+  const getBubbleRadius = (rate: number, llm: string) => {
     const MIN_RADIUS = 4
     const MAX_RADIUS = 30
 
-    // 데이터가 하나이거나 범위가 매우 좁으면 중간 크기
-    if (maxRate - minRate < 0.1) return (MIN_RADIUS + MAX_RADIUS) / 2
+    const range = llmRanges[llm] || { min: 0, max: 50 }
+    const { min, max } = range
 
-    // 순수 Min-Max 정규화: (value - min) / (max - min)
-    const normalized = (rate - minRate) / (maxRate - minRate)
+    // 데이터가 하나이거나 범위가 매우 좁으면 중간 크기
+    if (max - min < 0.1) return (MIN_RADIUS + MAX_RADIUS) / 2
+
+    // LLM별 Min-Max 정규화: (value - min) / (max - min)
+    const normalized = (rate - min) / (max - min)
 
     // 최소값 → MIN_RADIUS, 최대값 → MAX_RADIUS
     return MIN_RADIUS + normalized * (MAX_RADIUS - MIN_RADIUS)
@@ -262,7 +278,7 @@ export function BubbleFlowChart({
 
                 const xPercent = (bubble.timeSlot / maxSlot) * 100
                 const yCenter = (llmIndex + 0.5) * laneHeight
-                const radius = getBubbleRadius(bubble.citationRate)
+                const radius = getBubbleRadius(bubble.citationRate, bubble.llm)
 
                 return (
                   <Tooltip key={idx}>
@@ -320,15 +336,15 @@ export function BubbleFlowChart({
 
           {/* 범례 */}
           <div className="flex items-center justify-end gap-4 mt-4 text-xs text-muted-foreground">
-            <span>버블 크기 = 인용률</span>
+            <span>버블 크기 = LLM별 상대 인용률</span>
             <div className="flex items-center gap-1.5">
               <div className="w-2 h-2 rounded-full bg-muted-foreground/30" />
-              <span>{minRate}%</span>
+              <span>최소</span>
             </div>
             <span>~</span>
             <div className="flex items-center gap-1.5">
               <div className="w-7 h-7 rounded-full bg-muted-foreground/30" />
-              <span>{maxRate}%</span>
+              <span>최대</span>
             </div>
           </div>
         </CardContent>

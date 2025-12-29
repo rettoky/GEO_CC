@@ -63,7 +63,7 @@ const darkModeColors = `
 export function CalendarHeatmap({
   data,
   title = '분석 활동 캘린더',
-  description = '날짜별 평균 인용률을 GitHub 스타일로 표시합니다',
+  description = '날짜별 평균 인용률을 색상 강도로 표시합니다',
   className,
 }: CalendarHeatmapProps) {
   // 날짜별 데이터 맵 생성
