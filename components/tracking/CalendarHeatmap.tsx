@@ -21,23 +21,39 @@ interface CalendarHeatmapProps {
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
 const MONTHS = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월']
 
-// 인용률에 따른 색상 (GitHub 스타일 그린 계열)
-function getIntensityColor(value: number | null): string {
-  if (value === null || value === 0) return 'var(--calendar-empty, #ebedf0)'
-  if (value < 10) return 'var(--calendar-l1, #9be9a8)'
-  if (value < 25) return 'var(--calendar-l2, #40c463)'
-  if (value < 50) return 'var(--calendar-l3, #30a14e)'
-  return 'var(--calendar-l4, #216e39)'
+// GitHub 스타일 그린 계열 색상 (5단계)
+const COLOR_LEVELS = {
+  light: ['#ebedf0', '#9be9a8', '#40c463', '#30a14e', '#216e39'],
+  dark: ['#161b22', '#0e4429', '#006d32', '#26a641', '#39d353'],
 }
 
-// 다크모드용 색상
+// Min-Max 정규화 기반 색상 계산
+function getIntensityColor(
+  value: number | null,
+  minRate: number,
+  maxRate: number,
+  isDark: boolean = false
+): string {
+  const colors = isDark ? COLOR_LEVELS.dark : COLOR_LEVELS.light
+
+  if (value === null || value === 0) return colors[0]
+
+  // 데이터 범위가 매우 좁으면 중간 색상
+  if (maxRate - minRate < 0.1) return colors[2]
+
+  // Min-Max 정규화: 0-1 범위로 변환
+  const normalized = (value - minRate) / (maxRate - minRate)
+
+  // 0-1을 1-4 레벨로 매핑 (0은 데이터 없음용)
+  const level = Math.min(4, Math.max(1, Math.ceil(normalized * 4)))
+
+  return colors[level]
+}
+
+// 다크모드용 CSS 변수
 const darkModeColors = `
   .dark {
     --calendar-empty: #161b22;
-    --calendar-l1: #0e4429;
-    --calendar-l2: #006d32;
-    --calendar-l3: #26a641;
-    --calendar-l4: #39d353;
   }
 `
 
@@ -129,13 +145,14 @@ export function CalendarHeatmap({
     return labels
   }, [calendarWeeks])
 
-  // 통계 계산
+  // 통계 계산 (Min-Max 정규화용)
   const stats = useMemo(() => {
     const values = data.map(d => d.citationRate).filter(v => v > 0)
-    if (values.length === 0) return { avg: 0, max: 0, total: 0 }
+    if (values.length === 0) return { avg: 0, min: 0, max: 0, total: 0 }
     return {
       avg: Math.round(values.reduce((a, b) => a + b, 0) / values.length * 10) / 10,
-      max: Math.max(...values),
+      min: Math.round(Math.min(...values) * 10) / 10,
+      max: Math.round(Math.max(...values) * 10) / 10,
       total: data.length,
     }
   }, [data])
@@ -222,7 +239,9 @@ export function CalendarHeatmap({
                                 isFuture && 'opacity-30'
                               )}
                               style={{
-                                backgroundColor: isFuture ? 'var(--calendar-empty, #ebedf0)' : getIntensityColor(citationRate),
+                                backgroundColor: isFuture
+                                  ? 'var(--calendar-empty, #ebedf0)'
+                                  : getIntensityColor(citationRate, stats.min, stats.max),
                               }}
                             />
                           </TooltipTrigger>
@@ -254,19 +273,26 @@ export function CalendarHeatmap({
               </div>
             </div>
 
-            {/* 범례 */}
+            {/* 범례 - 실제 데이터 범위 표시 */}
             <div className="flex items-center justify-end gap-3 mt-6 text-sm text-muted-foreground">
-              <span>낮음</span>
+              <span>{stats.min}%</span>
               <div className="flex gap-[4px]">
-                {[0, 5, 15, 35, 60].map((value, idx) => (
+                {COLOR_LEVELS.light.slice(1).map((color, idx) => (
                   <div
                     key={idx}
-                    className="w-[28px] h-[28px] rounded-md"
-                    style={{ backgroundColor: getIntensityColor(value) }}
+                    className="w-[28px] h-[28px] rounded-md dark:hidden"
+                    style={{ backgroundColor: color }}
+                  />
+                ))}
+                {COLOR_LEVELS.dark.slice(1).map((color, idx) => (
+                  <div
+                    key={idx}
+                    className="w-[28px] h-[28px] rounded-md hidden dark:block"
+                    style={{ backgroundColor: color }}
                   />
                 ))}
               </div>
-              <span>높음</span>
+              <span>{stats.max}%</span>
             </div>
           </div>
         </CardContent>
