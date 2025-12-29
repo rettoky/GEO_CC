@@ -52,6 +52,21 @@ export function SentimentScoreChart({ data }: SentimentTrackingProps) {
     return scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0
   }, [chartData])
 
+  // Y축 동적 범위 계산 (감성 점수 기준)
+  const yAxisDomain = useMemo(() => {
+    const scores = chartData.map(d => d.score).filter(s => s !== 0)
+    if (scores.length === 0) return [-50, 50]
+
+    const minScore = Math.min(...scores)
+    const maxScore = Math.max(...scores)
+    const padding = Math.max(20, Math.abs(maxScore - minScore) * 0.2)
+
+    return [
+      Math.floor((minScore - padding) / 10) * 10,
+      Math.ceil((maxScore + padding) / 10) * 10
+    ]
+  }, [chartData])
+
   const latestScore = chartData[chartData.length - 1]?.score || 0
   const isPositiveTrend = latestScore >= avgScore
 
@@ -69,7 +84,7 @@ export function SentimentScoreChart({ data }: SentimentTrackingProps) {
               )}
             </CardTitle>
             <CardDescription>
-              브랜드 언급의 긍정/부정 감성 변화 (-100 ~ +100)
+              브랜드 언급의 긍정/부정 감성 변화 ({chartData.length}개 데이터)
             </CardDescription>
           </div>
           <div className="text-right">
@@ -87,11 +102,12 @@ export function SentimentScoreChart({ data }: SentimentTrackingProps) {
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis
                 dataKey="date"
-                tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
                 tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
+                interval={chartData.length > 15 ? Math.floor(chartData.length / 10) : 0}
               />
               <YAxis
-                domain={[-100, 100]}
+                domain={yAxisDomain}
                 tick={{ fill: 'hsl(var(--muted-foreground))' }}
                 tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
               />
@@ -115,8 +131,8 @@ export function SentimentScoreChart({ data }: SentimentTrackingProps) {
                 dataKey="score"
                 name="감성 점수"
                 stroke="#8b5cf6"
-                strokeWidth={3}
-                dot={{ fill: '#8b5cf6', strokeWidth: 2, r: 4 }}
+                strokeWidth={2}
+                dot={chartData.length <= 30}
                 activeDot={{ r: 6 }}
               />
             </LineChart>
@@ -128,7 +144,7 @@ export function SentimentScoreChart({ data }: SentimentTrackingProps) {
 }
 
 /**
- * 감성 분포 스택 바 차트
+ * 감성 분포 스택 바 차트 (데이터 많을 때 영역 차트로)
  */
 export function SentimentDistributionChart({ data }: SentimentTrackingProps) {
   const chartData = data.map(d => ({
@@ -139,38 +155,80 @@ export function SentimentDistributionChart({ data }: SentimentTrackingProps) {
     total: d.sentiment.total,
   }))
 
+  // Y축 동적 범위 계산
+  const yAxisMax = useMemo(() => {
+    const totals = chartData.map(d => d.total)
+    const maxTotal = Math.max(...totals, 1)
+    return Math.ceil(maxTotal * 1.2 / 5) * 5 // 5 단위로 올림
+  }, [chartData])
+
+  // 데이터가 많으면 영역 차트로 표시
+  const useAreaChart = chartData.length > 20
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>감성 분포 추세</CardTitle>
-        <CardDescription>날짜별 긍정/부정/중립 언급 분포</CardDescription>
+        <CardDescription>날짜별 긍정/부정/중립 언급 분포 ({chartData.length}개 데이터)</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="h-[250px]">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis
-                dataKey="date"
-                tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
-              />
-              <YAxis
-                tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: 'hsl(var(--background))',
-                  border: '1px solid hsl(var(--border))',
-                  borderRadius: '8px',
-                }}
-              />
-              <Legend />
-              <Bar dataKey="긍정" stackId="a" fill={SENTIMENT_COLORS.positive} />
-              <Bar dataKey="중립" stackId="a" fill={SENTIMENT_COLORS.neutral} />
-              <Bar dataKey="부정" stackId="a" fill={SENTIMENT_COLORS.negative} />
-            </BarChart>
+            {useAreaChart ? (
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                  tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
+                  interval={chartData.length > 15 ? Math.floor(chartData.length / 10) : 0}
+                />
+                <YAxis
+                  tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                  tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
+                  domain={[0, yAxisMax]}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'hsl(var(--background))',
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: '8px',
+                  }}
+                  formatter={(value: number) => [`${value}건`, '']}
+                />
+                <Legend />
+                <Line type="monotone" dataKey="긍정" stroke={SENTIMENT_COLORS.positive} strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="중립" stroke={SENTIMENT_COLORS.neutral} strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="부정" stroke={SENTIMENT_COLORS.negative} strokeWidth={2} dot={false} />
+              </LineChart>
+            ) : (
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                  tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
+                  interval={chartData.length > 15 ? Math.floor(chartData.length / 10) : 0}
+                />
+                <YAxis
+                  tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                  tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
+                  domain={[0, yAxisMax]}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'hsl(var(--background))',
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: '8px',
+                  }}
+                  formatter={(value: number) => [`${value}건`, '']}
+                />
+                <Legend />
+                <Bar dataKey="긍정" stackId="a" fill={SENTIMENT_COLORS.positive} />
+                <Bar dataKey="중립" stackId="a" fill={SENTIMENT_COLORS.neutral} />
+                <Bar dataKey="부정" stackId="a" fill={SENTIMENT_COLORS.negative} />
+              </BarChart>
+            )}
           </ResponsiveContainer>
         </div>
       </CardContent>

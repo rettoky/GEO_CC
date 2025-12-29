@@ -107,6 +107,26 @@ export function TrackingTab() {
     return aggregateData(trackingData, aggregation)
   }, [trackingData, aggregation])
 
+  // Y축 동적 범위 계산 (데이터 최대값 기준 + 여유분)
+  const yAxisDomain = useMemo(() => {
+    if (chartData.length === 0) return [0, 100]
+
+    const allValues = chartData.flatMap(d => [
+      d.citationRate,
+      d.brandExposure,
+      d.perplexity,
+      d.chatgpt,
+      d.gemini,
+    ]).filter(v => v > 0)
+
+    if (allValues.length === 0) return [0, 100]
+
+    const maxValue = Math.max(...allValues)
+    // 최대값의 120%를 상한으로, 10 단위로 올림
+    const upperBound = Math.ceil((maxValue * 1.2) / 10) * 10
+    return [0, Math.max(upperBound, 20)] // 최소 20%
+  }, [chartData])
+
   // 드릴다운용 분석 데이터 필터링
   const drilldownAnalyses = useMemo(() => {
     if (!drilldown.date) return []
@@ -298,7 +318,7 @@ export function TrackingTab() {
                     <YAxis
                       tick={{ fill: 'hsl(var(--muted-foreground))' }}
                       tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
-                      domain={[0, 100]}
+                      domain={yAxisDomain}
                       tickFormatter={(value) => `${value}%`}
                     />
                     <Tooltip
@@ -368,7 +388,7 @@ export function TrackingTab() {
                     <YAxis
                       tick={{ fill: 'hsl(var(--muted-foreground))' }}
                       tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
-                      domain={[0, 100]}
+                      domain={yAxisDomain}
                       tickFormatter={(value) => `${value}%`}
                     />
                     <Tooltip
@@ -417,7 +437,7 @@ export function TrackingTab() {
 
       {/* 감성 분석 뷰 */}
       {chartView === 'sentiment' && (
-        <SentimentTrackingDashboard data={trackingData} />
+        <SentimentTrackingDashboard data={chartData} />
       )}
 
       {/* 히트맵 뷰 */}
