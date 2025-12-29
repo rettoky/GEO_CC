@@ -109,20 +109,37 @@ export function BubbleFlowChart({
     return bubbles
   }, [analyses])
 
-  // 최대 인용률 (버블 크기 정규화용)
-  const maxCitationRate = useMemo(() => {
-    if (bubbleData.length === 0) return 50
-    return Math.max(...bubbleData.map(d => d.citationRate), 30)
+  // 인용률 범위 계산 (버블 크기 정규화용)
+  const { minRate, maxRate } = useMemo(() => {
+    if (bubbleData.length === 0) return { minRate: 0, maxRate: 50 }
+    const rates = bubbleData.map(d => d.citationRate)
+    return {
+      minRate: Math.min(...rates),
+      maxRate: Math.max(...rates),
+    }
   }, [bubbleData])
 
-  // 버블 반지름 계산 (최소 4px, 최대 20px)
+  // 버블 반지름 계산 (최소 6px, 최대 28px)
+  // 제곱근 스케일 + 범위 정규화로 차이를 더 뚜렷하게 표현
   const getBubbleRadius = (rate: number) => {
-    const normalized = rate / maxCitationRate
-    return Math.max(4, Math.min(20, normalized * 20))
+    const MIN_RADIUS = 6
+    const MAX_RADIUS = 28
+
+    // 데이터 범위가 좁으면 중간 크기 반환
+    if (maxRate - minRate < 1) return (MIN_RADIUS + MAX_RADIUS) / 2
+
+    // 0-1 범위로 정규화
+    const normalized = (rate - minRate) / (maxRate - minRate)
+
+    // 제곱근 스케일 적용 (작은 값의 차이를 더 크게)
+    // 그리고 pow(1.5)로 큰 값의 차이도 강조
+    const scaled = Math.pow(normalized, 0.6)
+
+    return MIN_RADIUS + scaled * (MAX_RADIUS - MIN_RADIUS)
   }
 
   const llmOrder = ['perplexity', 'chatgpt', 'gemini']
-  const chartHeight = 180
+  const chartHeight = 210 // 더 큰 버블 수용을 위해 높이 증가
   const chartWidth = '100%'
   const laneHeight = chartHeight / 3
   const leftPadding = 80
@@ -270,13 +287,14 @@ export function BubbleFlowChart({
           {/* 범례 */}
           <div className="flex items-center justify-end gap-4 mt-4 text-xs text-muted-foreground">
             <span>버블 크기 = 인용률</span>
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full bg-muted-foreground/50" />
-              <span>작음</span>
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded-full bg-muted-foreground/50" />
+              <span>{minRate}%</span>
             </div>
-            <div className="flex items-center gap-1">
-              <div className="w-4 h-4 rounded-full bg-muted-foreground/50" />
-              <span>큼</span>
+            <span>~</span>
+            <div className="flex items-center gap-1.5">
+              <div className="w-6 h-6 rounded-full bg-muted-foreground/50" />
+              <span>{maxRate}%</span>
             </div>
           </div>
         </CardContent>
