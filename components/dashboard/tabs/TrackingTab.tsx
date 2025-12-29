@@ -86,7 +86,7 @@ function aggregateData(data: TrackingData[], aggregation: AggregationType): Trac
 
 export function TrackingTab() {
   const { selectedSectionId, sections } = useTrackingSection()
-  const [dateRange, setDateRange] = useState<'7days' | '30days' | 'all'>('30days')
+  const [dateRange, setDateRange] = useState<'7days' | '30days' | 'all'>('all')
   const [chartView, setChartView] = useState<'basic' | 'heatmap' | 'sentiment'>('basic')
   const [aggregation, setAggregation] = useState<AggregationType>('daily')
   const [drilldown, setDrilldown] = useState<{
