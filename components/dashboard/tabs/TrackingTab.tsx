@@ -12,21 +12,18 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
-  LineChart,
-  Line,
   AreaChart,
   Area,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
 } from 'recharts'
 import { useTrackingSection } from '@/contexts/TrackingSectionContext'
 import { useTrackingAnalyses, type TrackingData } from '@/hooks/useTrackingAnalyses'
 import { Folder, TrendingUp, BarChart3, Heart } from 'lucide-react'
-import { CalendarHeatmap, SmallMultiplesChart, DrilldownModal, SentimentTrackingDashboard } from '@/components/tracking'
+import { CalendarHeatmap, MetricsSummary, DrilldownModal, SentimentTrackingDashboard } from '@/components/tracking'
 import type { LLMType } from '@/lib/supabase/types'
 
 type AggregationType = 'daily' | 'weekly' | 'monthly'
@@ -280,163 +277,147 @@ export function TrackingTab() {
       {/* 기본 차트 뷰 */}
       {chartView === 'basic' && (
         <>
-          {/* 인용율 추세 차트 */}
+          {/* LLM별 인용율 추세 - 3열 분할 */}
           <Card>
-            <CardHeader>
-              <CardTitle>인용율 추세</CardTitle>
+            <CardHeader className="pb-2">
+              <CardTitle>LLM별 인용율 추세</CardTitle>
               <CardDescription>
-                시간에 따른 내 도메인/브랜드 인용율 변화
+                각 LLM에서의 인용율 변화 추이
                 {chartData.length !== trackingData.length && (
                   <span className="ml-2 text-xs">({trackingData.length}개 → {chartData.length}개 집계)</span>
                 )}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis
-                      dataKey="date"
-                      tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
-                      tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
-                      interval={chartData.length > 15 ? Math.floor(chartData.length / 10) : 0}
-                    />
-                    <YAxis
-                      tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                      tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
-                      domain={yAxisDomain}
-                      allowDataOverflow={true}
-                      tickCount={6}
-                      tickFormatter={(value) => `${value}%`}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: 'hsl(var(--background))',
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: '8px',
-                      }}
-                      formatter={(value: number) => [`${value}%`, '']}
-                    />
-                    <Legend />
-                    <Line
-                      type="monotone"
-                      dataKey="citationRate"
-                      name="인용율"
-                      stroke="#22c55e"
-                      strokeWidth={2}
-                      dot={chartData.length <= 30}
-                      activeDot={{ r: 6 }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="brandExposure"
-                      name="브랜드 노출률"
-                      stroke="#3b82f6"
-                      strokeWidth={2}
-                      dot={chartData.length <= 30}
-                      activeDot={{ r: 6 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Perplexity */}
+                <div className="border rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-3 h-3 rounded-full bg-[#8b5cf6]" />
+                    <span className="font-medium text-sm">Perplexity</span>
+                    <span className="ml-auto text-sm font-semibold text-[#8b5cf6]">
+                      {chartData.length > 0 ? chartData[chartData.length - 1].perplexity : 0}%
+                    </span>
+                  </div>
+                  <div className="h-[180px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="gradPerplexity" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
+                            <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
+                        <XAxis dataKey="date" tick={false} axisLine={{ stroke: 'hsl(var(--border))' }} />
+                        <YAxis
+                          domain={yAxisDomain}
+                          allowDataOverflow={true}
+                          tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
+                          axisLine={false}
+                          tickLine={false}
+                          width={30}
+                        />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', borderRadius: '6px', fontSize: '12px' }}
+                          formatter={(value: number) => [`${value}%`, 'Perplexity']}
+                        />
+                        <Area type="monotone" dataKey="perplexity" stroke="#8b5cf6" strokeWidth={2} fillOpacity={1} fill="url(#gradPerplexity)" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* ChatGPT */}
+                <div className="border rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-3 h-3 rounded-full bg-[#22c55e]" />
+                    <span className="font-medium text-sm">ChatGPT</span>
+                    <span className="ml-auto text-sm font-semibold text-[#22c55e]">
+                      {chartData.length > 0 ? chartData[chartData.length - 1].chatgpt : 0}%
+                    </span>
+                  </div>
+                  <div className="h-[180px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="gradChatGPT" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3}/>
+                            <stop offset="95%" stopColor="#22c55e" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
+                        <XAxis dataKey="date" tick={false} axisLine={{ stroke: 'hsl(var(--border))' }} />
+                        <YAxis
+                          domain={yAxisDomain}
+                          allowDataOverflow={true}
+                          tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
+                          axisLine={false}
+                          tickLine={false}
+                          width={30}
+                        />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', borderRadius: '6px', fontSize: '12px' }}
+                          formatter={(value: number) => [`${value}%`, 'ChatGPT']}
+                        />
+                        <Area type="monotone" dataKey="chatgpt" stroke="#22c55e" strokeWidth={2} fillOpacity={1} fill="url(#gradChatGPT)" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Gemini */}
+                <div className="border rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-3 h-3 rounded-full bg-[#3b82f6]" />
+                    <span className="font-medium text-sm">Gemini</span>
+                    <span className="ml-auto text-sm font-semibold text-[#3b82f6]">
+                      {chartData.length > 0 ? chartData[chartData.length - 1].gemini : 0}%
+                    </span>
+                  </div>
+                  <div className="h-[180px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="gradGemini" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
+                        <XAxis dataKey="date" tick={false} axisLine={{ stroke: 'hsl(var(--border))' }} />
+                        <YAxis
+                          domain={yAxisDomain}
+                          allowDataOverflow={true}
+                          tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
+                          axisLine={false}
+                          tickLine={false}
+                          width={30}
+                        />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', borderRadius: '6px', fontSize: '12px' }}
+                          formatter={(value: number) => [`${value}%`, 'Gemini']}
+                        />
+                        <Area type="monotone" dataKey="gemini" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#gradGemini)" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* LLM별 비교 차트 - Area Chart로 변경 */}
-          <Card>
-            <CardHeader>
-              <CardTitle>LLM별 인용율 추세</CardTitle>
-              <CardDescription>각 LLM에서의 인용율 변화 추이</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
-                    <defs>
-                      <linearGradient id="colorPerplexity" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
-                      </linearGradient>
-                      <linearGradient id="colorChatGPT" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#22c55e" stopOpacity={0}/>
-                      </linearGradient>
-                      <linearGradient id="colorGemini" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis
-                      dataKey="date"
-                      tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
-                      tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
-                      interval={chartData.length > 15 ? Math.floor(chartData.length / 10) : 0}
-                    />
-                    <YAxis
-                      tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                      tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
-                      domain={yAxisDomain}
-                      allowDataOverflow={true}
-                      tickCount={6}
-                      tickFormatter={(value) => `${value}%`}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: 'hsl(var(--background))',
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: '8px',
-                      }}
-                      formatter={(value: number) => [`${value}%`, '']}
-                    />
-                    <Legend />
-                    <Area
-                      type="monotone"
-                      dataKey="perplexity"
-                      name="Perplexity"
-                      stroke="#8b5cf6"
-                      strokeWidth={2}
-                      fillOpacity={1}
-                      fill="url(#colorPerplexity)"
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="chatgpt"
-                      name="ChatGPT"
-                      stroke="#22c55e"
-                      strokeWidth={2}
-                      fillOpacity={1}
-                      fill="url(#colorChatGPT)"
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="gemini"
-                      name="Gemini"
-                      stroke="#3b82f6"
-                      strokeWidth={2}
-                      fillOpacity={1}
-                      fill="url(#colorGemini)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* LLM별 Small Multiples + Calendar Heatmap 가로 배치 */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <SmallMultiplesChart
+          {/* 핵심 지표 + Calendar Heatmap 가로 배치 */}
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr] gap-6">
+            <MetricsSummary
               data={chartData}
-              title="LLM별 인용률 상세"
-              description="각 LLM의 인용률 추세를 개별 차트로 비교합니다"
-              className="h-full"
+              title="핵심 지표"
+              description="트래킹 주요 성과 요약"
             />
             <CalendarHeatmap
               data={trackingData}
               title="분석 활동 캘린더"
               description="날짜별 평균 인용률을 GitHub 스타일로 표시합니다"
-              className="h-full"
             />
           </div>
         </>

@@ -4,7 +4,7 @@
  */
 
 export { CalendarHeatmap } from './CalendarHeatmap'
-export { SmallMultiplesChart } from './SmallMultiplesChart'
+export { MetricsSummary } from './MetricsSummary'
 export { DrilldownModal } from './DrilldownModal'
 export {
   SentimentScoreChart,
