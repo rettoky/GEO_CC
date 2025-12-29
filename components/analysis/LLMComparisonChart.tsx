@@ -82,14 +82,16 @@ export function LLMComparisonChart({
     }
 
     // 경쟁사들 (상위 7개)
-    brandMentionAnalysis.competitors.slice(0, 7).forEach((competitor, index) => {
-      data.push({
-        name: competitor.brand,
-        count: competitor.mentionCount,
-        color: BRAND_COLORS[index + 1] || COMPETITOR_COLOR,
-        isMyBrand: false,
+    if (brandMentionAnalysis.competitors && Array.isArray(brandMentionAnalysis.competitors)) {
+      brandMentionAnalysis.competitors.slice(0, 7).forEach((competitor, index) => {
+        data.push({
+          name: competitor.brand,
+          count: competitor.mentionCount,
+          color: BRAND_COLORS[index + 1] || COMPETITOR_COLOR,
+          isMyBrand: false,
+        })
       })
-    })
+    }
 
     // 노출수 기준 내림차순 정렬
     return data.sort((a, b) => b.count - a.count)
@@ -111,8 +113,9 @@ export function LLMComparisonChart({
     }
 
     // 경쟁사들 (상위 5개 + 기타)
-    const topCompetitors = brandMentionAnalysis.competitors.slice(0, 5)
-    const restCompetitors = brandMentionAnalysis.competitors.slice(5)
+    const competitors = brandMentionAnalysis.competitors || []
+    const topCompetitors = competitors.slice(0, 5)
+    const restCompetitors = competitors.slice(5)
 
     topCompetitors.forEach((competitor, index) => {
       data.push({
