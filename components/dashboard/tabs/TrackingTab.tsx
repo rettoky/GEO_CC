@@ -324,6 +324,8 @@ export function TrackingTab() {
                       tick={{ fill: 'hsl(var(--muted-foreground))' }}
                       tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
                       domain={yAxisDomain}
+                      allowDataOverflow={true}
+                      tickCount={6}
                       tickFormatter={(value) => `${value}%`}
                     />
                     <Tooltip
@@ -394,6 +396,8 @@ export function TrackingTab() {
                       tick={{ fill: 'hsl(var(--muted-foreground))' }}
                       tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
                       domain={yAxisDomain}
+                      allowDataOverflow={true}
+                      tickCount={6}
                       tickFormatter={(value) => `${value}%`}
                     />
                     <Tooltip
