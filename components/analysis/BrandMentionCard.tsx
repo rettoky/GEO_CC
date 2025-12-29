@@ -3,9 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
-import {
-  TooltipProvider,
-} from '@/components/ui/tooltip'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import {
   TrendingUp,
   TrendingDown,
@@ -78,16 +76,19 @@ const LLM_NAMES: Record<string, string> = {
  * 감성 분석 미니 요약 컴포넌트
  */
 function SentimentMiniSummary({ sentiments }: { sentiments?: BrandMentionSentiment[] }) {
-  if (!sentiments || sentiments.length === 0) {
-    return null
-  }
-
   const stats = useMemo(() => {
+    if (!sentiments || sentiments.length === 0) {
+      return null
+    }
     const positive = sentiments.filter(s => s.sentiment === 'positive').length
     const negative = sentiments.filter(s => s.sentiment === 'negative').length
     const neutral = sentiments.filter(s => s.sentiment === 'neutral').length
     return { positive, negative, neutral, total: sentiments.length }
   }, [sentiments])
+
+  if (!stats) {
+    return null
+  }
 
   return (
     <div className="mt-3 p-2 rounded-lg bg-white/50 dark:bg-gray-800/30 border border-gray-200 dark:border-gray-700">
