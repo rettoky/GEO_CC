@@ -67,9 +67,12 @@ export function CalendarHeatmap({
     return map
   }, [data])
 
-  // 캘린더 그리드 생성 (최근 16주)
+  // 캘린더 그리드 생성 (최근 16주) - 월 시작 여부 포함
   const calendarWeeks = useMemo(() => {
-    const weeks: Array<Array<{ date: Date; dateStr: string; data: TrackingData | null }>> = []
+    const weeks: Array<{
+      days: Array<{ date: Date; dateStr: string; data: TrackingData | null }>
+      isMonthStart: boolean
+    }> = []
     const today = new Date()
 
     // 16주 전부터 시작
@@ -79,9 +82,12 @@ export function CalendarHeatmap({
     startDate.setDate(startDate.getDate() - startDate.getDay())
 
     let currentDate = new Date(startDate)
+    let lastMonth = -1
 
     while (currentDate <= today) {
       const week: Array<{ date: Date; dateStr: string; data: TrackingData | null }> = []
+      const firstDayMonth = currentDate.getMonth()
+      const isMonthStart = firstDayMonth !== lastMonth && lastMonth !== -1
 
       for (let i = 0; i < 7; i++) {
         const dateStr = currentDate.toISOString().split('T')[0]
@@ -93,23 +99,29 @@ export function CalendarHeatmap({
         currentDate.setDate(currentDate.getDate() + 1)
       }
 
-      weeks.push(week)
+      weeks.push({ days: week, isMonthStart })
+      lastMonth = firstDayMonth
     }
 
     return weeks
   }, [dateDataMap])
 
-  // 월 레이블 위치 계산
+  // 월 레이블 위치 계산 (간격 포함)
   const monthLabels = useMemo(() => {
-    const labels: Array<{ month: string; weekIndex: number }> = []
+    const labels: Array<{ month: string; weekIndex: number; gapCount: number }> = []
     let lastMonth = -1
+    let gapCount = 0
 
     calendarWeeks.forEach((week, weekIndex) => {
-      const firstDayOfWeek = week[0].date
+      const firstDayOfWeek = week.days[0].date
       const month = firstDayOfWeek.getMonth()
 
+      if (week.isMonthStart) {
+        gapCount++
+      }
+
       if (month !== lastMonth) {
-        labels.push({ month: MONTHS[month], weekIndex })
+        labels.push({ month: MONTHS[month], weekIndex, gapCount })
         lastMonth = month
       }
     })
@@ -149,18 +161,29 @@ export function CalendarHeatmap({
           <div className="overflow-x-auto">
             {/* 월 레이블 */}
             <div className="flex mb-2 ml-12">
-              {monthLabels.map(({ month, weekIndex }, idx) => (
-                <div
-                  key={idx}
-                  className="text-sm font-medium text-muted-foreground"
-                  style={{
-                    marginLeft: idx === 0 ? weekIndex * 32 : (monthLabels[idx].weekIndex - monthLabels[idx - 1].weekIndex - 1) * 32,
-                    width: 'auto',
-                  }}
-                >
-                  {month}
-                </div>
-              ))}
+              {monthLabels.map(({ month, weekIndex, gapCount }, idx) => {
+                // 월별 간격(8px)을 포함한 위치 계산
+                const prevGapCount = idx > 0 ? monthLabels[idx - 1].gapCount : 0
+                const prevWeekIndex = idx > 0 ? monthLabels[idx - 1].weekIndex : 0
+                const baseGap = 32 // 셀 너비(28px) + 기본 간격(4px)
+                const monthGap = 8 // 월 구분 추가 간격
+                const gapDiff = gapCount - prevGapCount
+                const weekDiff = idx === 0 ? weekIndex : weekIndex - prevWeekIndex - 1
+                const marginLeft = weekDiff * baseGap + gapDiff * monthGap
+
+                return (
+                  <div
+                    key={idx}
+                    className="text-sm font-medium text-muted-foreground"
+                    style={{
+                      marginLeft,
+                      width: 'auto',
+                    }}
+                  >
+                    {month}
+                  </div>
+                )
+              })}
             </div>
 
             <div className="flex">
@@ -176,11 +199,15 @@ export function CalendarHeatmap({
                 ))}
               </div>
 
-              {/* 캘린더 그리드 */}
+              {/* 캘린더 그리드 - 월별 간격 포함 */}
               <div className="flex gap-[4px]">
                 {calendarWeeks.map((week, weekIdx) => (
-                  <div key={weekIdx} className="flex flex-col gap-[4px]">
-                    {week.map(({ date, dateStr, data: dayData }) => {
+                  <div
+                    key={weekIdx}
+                    className="flex flex-col gap-[4px]"
+                    style={{ marginLeft: week.isMonthStart ? 8 : 0 }}
+                  >
+                    {week.days.map(({ date, dateStr, data: dayData }) => {
                       const isToday = dateStr === new Date().toISOString().split('T')[0]
                       const isFuture = date > new Date()
                       const citationRate = dayData?.citationRate ?? null

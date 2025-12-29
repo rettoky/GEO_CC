@@ -23,7 +23,7 @@ import {
 import { useTrackingSection } from '@/contexts/TrackingSectionContext'
 import { useTrackingAnalyses, type TrackingData } from '@/hooks/useTrackingAnalyses'
 import { Folder, TrendingUp, BarChart3, Heart } from 'lucide-react'
-import { CalendarHeatmap, DrilldownModal, SentimentTrackingDashboard } from '@/components/tracking'
+import { BubbleFlowChart, CalendarHeatmap, DrilldownModal, SentimentTrackingDashboard } from '@/components/tracking'
 import type { LLMType } from '@/lib/supabase/types'
 
 type AggregationType = 'daily' | 'weekly' | 'monthly'
@@ -407,12 +407,22 @@ export function TrackingTab() {
             </CardContent>
           </Card>
 
-          {/* Calendar Heatmap */}
-          <CalendarHeatmap
-            data={trackingData}
-            title="분석 활동 캘린더"
-            description="날짜별 평균 인용률을 GitHub 스타일로 표시합니다"
-          />
+          {/* 버블 플로우 + 캘린더 히트맵 */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* 시간대별 버블 플로우 차트 */}
+            <BubbleFlowChart
+              analyses={analyses}
+              title="시간대별 분석 패턴"
+              description="LLM별 시간대에 따른 인용률 분포"
+            />
+
+            {/* Calendar Heatmap */}
+            <CalendarHeatmap
+              data={trackingData}
+              title="분석 활동 캘린더"
+              description="날짜별 평균 인용률을 GitHub 스타일로 표시합니다"
+            />
+          </div>
         </>
       )}
 
