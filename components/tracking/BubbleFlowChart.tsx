@@ -1,7 +1,8 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Tooltip,
   TooltipContent,
@@ -18,18 +19,21 @@ interface BubbleFlowChartProps {
   className?: string
 }
 
-// LLM별 색상 정의
-const LLM_CONFIG: Record<string, { color: string; label: string }> = {
-  perplexity: { color: '#8b5cf6', label: 'Perplexity' },
-  chatgpt: { color: '#22c55e', label: 'ChatGPT' },
-  gemini: { color: '#3b82f6', label: 'Gemini' },
+// LLM별 색상 정의 (연한 색상으로 변경 - 중첩 효과용)
+const LLM_CONFIG: Record<string, { color: string; colorLight: string; label: string }> = {
+  perplexity: { color: '#8b5cf6', colorLight: 'rgba(139, 92, 246, 0.35)', label: 'Perplexity' },
+  chatgpt: { color: '#22c55e', colorLight: 'rgba(34, 197, 94, 0.35)', label: 'ChatGPT' },
+  gemini: { color: '#3b82f6', colorLight: 'rgba(59, 130, 246, 0.35)', label: 'Gemini' },
 }
 
-// 시간대 레이블 (6시간 단위)
-const TIME_LABELS = ['0시', '6시', '12시', '18시', '24시']
+// 시간대 레이블
+const HOURLY_LABELS = ['0시', '6시', '12시', '18시', '24시']
+const MINUTE_LABELS = ['0시', '4시', '8시', '12시', '16시', '20시', '24시']
+
+type TimeMode = 'hourly' | 'tenMinute'
 
 interface BubbleData {
-  hour: number
+  timeSlot: number // hourly: 0-23, tenMinute: 0-143
   llm: string
   citationRate: number
   count: number
@@ -37,7 +41,7 @@ interface BubbleData {
 
 /**
  * 시간대별 LLM 인용률 버블 산점도
- * X축: 시간 (0-24시)
+ * X축: 시간 (시간 단위 또는 10분 단위)
  * Y축: LLM 종류 (레인)
  * 버블 크기: 인용률
  */
@@ -47,18 +51,27 @@ export function BubbleFlowChart({
   description = 'LLM별 시간대에 따른 인용률 분포',
   className,
 }: BubbleFlowChartProps) {
+  const [timeMode, setTimeMode] = useState<TimeMode>('hourly')
+
   // 분석 데이터를 시간대 + LLM별로 집계
   const bubbleData = useMemo(() => {
-    const hourlyMap = new Map<string, { rates: number[]; count: number }>()
+    const dataMap = new Map<string, { rates: number[]; count: number }>()
     const llmTypes: LLMType[] = ['perplexity', 'chatgpt', 'gemini']
 
     analyses.forEach(analysis => {
-      const hour = new Date(analysis.created_at).getHours()
+      const date = new Date(analysis.created_at)
+      const hour = date.getHours()
+      const minute = date.getMinutes()
+
+      // 시간 슬롯 계산
+      const timeSlot = timeMode === 'hourly'
+        ? hour
+        : hour * 6 + Math.floor(minute / 10) // 10분 단위: 0-143
+
       const summary = analysis.summary as {
         citationRateByLLM?: Record<LLMType, number | null>
       } | null
 
-      // intermediate_results에서도 추출
       const intermediateResults = analysis.intermediate_results as {
         allQueryResults?: Array<{
           summary?: { citationRateByLLM?: Record<LLMType, number | null> }
@@ -69,7 +82,6 @@ export function BubbleFlowChart({
       llmTypes.forEach(llm => {
         let citationRate: number | null = null
 
-        // 배치 분석인 경우
         if (intermediateResults?.allQueryResults) {
           const rates = intermediateResults.allQueryResults
             .map(qr => qr.summary?.citationRateByLLM?.[llm])
@@ -82,11 +94,11 @@ export function BubbleFlowChart({
         }
 
         if (citationRate !== null && citationRate > 0) {
-          const key = `${hour}-${llm}`
-          if (!hourlyMap.has(key)) {
-            hourlyMap.set(key, { rates: [], count: 0 })
+          const key = `${timeSlot}-${llm}`
+          if (!dataMap.has(key)) {
+            dataMap.set(key, { rates: [], count: 0 })
           }
-          const entry = hourlyMap.get(key)!
+          const entry = dataMap.get(key)!
           entry.rates.push(citationRate)
           entry.count++
         }
@@ -95,11 +107,11 @@ export function BubbleFlowChart({
 
     // Map을 BubbleData 배열로 변환
     const bubbles: BubbleData[] = []
-    hourlyMap.forEach((value, key) => {
-      const [hourStr, llm] = key.split('-')
+    dataMap.forEach((value, key) => {
+      const [slotStr, llm] = key.split('-')
       const avgRate = value.rates.reduce((a, b) => a + b, 0) / value.rates.length
       bubbles.push({
-        hour: parseInt(hourStr),
+        timeSlot: parseInt(slotStr),
         llm,
         citationRate: Math.round(avgRate * 10) / 10,
         count: value.count,
@@ -107,9 +119,9 @@ export function BubbleFlowChart({
     })
 
     return bubbles
-  }, [analyses])
+  }, [analyses, timeMode])
 
-  // 인용률 범위 계산 (버블 크기 정규화용)
+  // Min-Max 정규화를 위한 범위 계산
   const { minRate, maxRate } = useMemo(() => {
     if (bubbleData.length === 0) return { minRate: 0, maxRate: 50 }
     const rates = bubbleData.map(d => d.citationRate)
@@ -119,38 +131,60 @@ export function BubbleFlowChart({
     }
   }, [bubbleData])
 
-  // 버블 반지름 계산 (최소 6px, 최대 28px)
-  // 제곱근 스케일 + 범위 정규화로 차이를 더 뚜렷하게 표현
+  // 버블 반지름 계산 - 순수 Min-Max 정규화
   const getBubbleRadius = (rate: number) => {
-    const MIN_RADIUS = 6
-    const MAX_RADIUS = 28
+    const MIN_RADIUS = 4
+    const MAX_RADIUS = 30
 
-    // 데이터 범위가 좁으면 중간 크기 반환
-    if (maxRate - minRate < 1) return (MIN_RADIUS + MAX_RADIUS) / 2
+    // 데이터가 하나이거나 범위가 매우 좁으면 중간 크기
+    if (maxRate - minRate < 0.1) return (MIN_RADIUS + MAX_RADIUS) / 2
 
-    // 0-1 범위로 정규화
+    // 순수 Min-Max 정규화: (value - min) / (max - min)
     const normalized = (rate - minRate) / (maxRate - minRate)
 
-    // 제곱근 스케일 적용 (작은 값의 차이를 더 크게)
-    // 그리고 pow(1.5)로 큰 값의 차이도 강조
-    const scaled = Math.pow(normalized, 0.6)
+    // 최소값 → MIN_RADIUS, 최대값 → MAX_RADIUS
+    return MIN_RADIUS + normalized * (MAX_RADIUS - MIN_RADIUS)
+  }
 
-    return MIN_RADIUS + scaled * (MAX_RADIUS - MIN_RADIUS)
+  // 시간 슬롯을 시간 문자열로 변환
+  const getTimeLabel = (slot: number): string => {
+    if (timeMode === 'hourly') {
+      return `${slot}시 ~ ${slot + 1}시`
+    } else {
+      const hour = Math.floor(slot / 6)
+      const minuteStart = (slot % 6) * 10
+      const minuteEnd = minuteStart + 10
+      if (minuteEnd === 60) {
+        return `${hour}:${minuteStart.toString().padStart(2, '0')} ~ ${hour + 1}:00`
+      }
+      return `${hour}:${minuteStart.toString().padStart(2, '0')} ~ ${hour}:${minuteEnd.toString().padStart(2, '0')}`
+    }
   }
 
   const llmOrder = ['perplexity', 'chatgpt', 'gemini']
-  const chartHeight = 210 // 더 큰 버블 수용을 위해 높이 증가
-  const chartWidth = '100%'
+  const chartHeight = 210
   const laneHeight = chartHeight / 3
   const leftPadding = 80
   const rightPadding = 20
+  const maxSlot = timeMode === 'hourly' ? 24 : 144
+  const timeLabels = timeMode === 'hourly' ? HOURLY_LABELS : MINUTE_LABELS
 
   return (
     <TooltipProvider>
       <Card className={cn('overflow-hidden', className)}>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">{title}</CardTitle>
-          <CardDescription className="text-sm">{description}</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-base">{title}</CardTitle>
+              <CardDescription className="text-sm">{description}</CardDescription>
+            </div>
+            <Tabs value={timeMode} onValueChange={(v) => setTimeMode(v as TimeMode)}>
+              <TabsList className="h-8">
+                <TabsTrigger value="hourly" className="text-xs px-3 h-7">시간</TabsTrigger>
+                <TabsTrigger value="tenMinute" className="text-xs px-3 h-7">10분</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
         </CardHeader>
 
         <CardContent className="pt-4">
@@ -160,7 +194,7 @@ export function BubbleFlowChart({
               className="absolute left-0 top-0 flex flex-col justify-around"
               style={{ height: chartHeight, width: leftPadding - 10 }}
             >
-              {llmOrder.map((llm, idx) => (
+              {llmOrder.map((llm) => (
                 <div
                   key={llm}
                   className="flex items-center gap-2 pr-2"
@@ -193,8 +227,8 @@ export function BubbleFlowChart({
                   width="100"
                   height={laneHeight}
                   fill={LLM_CONFIG[llm].color}
-                  fillOpacity={0.05}
-                  className="dark:fill-opacity-10"
+                  fillOpacity={0.03}
+                  className="dark:fill-opacity-05"
                 />
               ))}
 
@@ -212,7 +246,7 @@ export function BubbleFlowChart({
               ))}
             </svg>
 
-            {/* 버블 렌더링 (별도 SVG로 분리하여 preserveAspectRatio 제거) */}
+            {/* 버블 렌더링 */}
             <div
               className="absolute"
               style={{
@@ -226,7 +260,7 @@ export function BubbleFlowChart({
                 const llmIndex = llmOrder.indexOf(bubble.llm)
                 if (llmIndex === -1) return null
 
-                const xPercent = (bubble.hour / 24) * 100
+                const xPercent = (bubble.timeSlot / maxSlot) * 100
                 const yCenter = (llmIndex + 0.5) * laneHeight
                 const radius = getBubbleRadius(bubble.citationRate)
 
@@ -234,21 +268,21 @@ export function BubbleFlowChart({
                   <Tooltip key={idx}>
                     <TooltipTrigger asChild>
                       <div
-                        className="absolute rounded-full cursor-pointer transition-transform hover:scale-125"
+                        className="absolute rounded-full cursor-pointer transition-transform hover:scale-125 hover:z-10"
                         style={{
                           left: `${xPercent}%`,
                           top: yCenter,
                           width: radius * 2,
                           height: radius * 2,
-                          backgroundColor: LLM_CONFIG[bubble.llm].color,
-                          opacity: 0.7,
+                          backgroundColor: LLM_CONFIG[bubble.llm].colorLight,
                           transform: `translate(-50%, -50%)`,
+                          mixBlendMode: 'multiply',
                         }}
                       />
                     </TooltipTrigger>
                     <TooltipContent side="top" className="text-sm">
                       <div className="font-medium">{LLM_CONFIG[bubble.llm].label}</div>
-                      <div className="text-muted-foreground">{bubble.hour}시 ~ {bubble.hour + 1}시</div>
+                      <div className="text-muted-foreground">{getTimeLabel(bubble.timeSlot)}</div>
                       <div className="mt-1">
                         인용률: <strong>{bubble.citationRate}%</strong>
                       </div>
@@ -261,7 +295,7 @@ export function BubbleFlowChart({
               })}
             </div>
 
-            {/* X축 레이블 (시간) */}
+            {/* X축 레이블 */}
             <div
               className="absolute flex justify-between"
               style={{
@@ -270,12 +304,12 @@ export function BubbleFlowChart({
                 width: `calc(100% - ${leftPadding + rightPadding}px)`
               }}
             >
-              {TIME_LABELS.map((label, idx) => (
+              {timeLabels.map((label, idx) => (
                 <span
                   key={idx}
                   className="text-xs text-muted-foreground"
                   style={{
-                    transform: idx === TIME_LABELS.length - 1 ? 'translateX(-50%)' : idx === 0 ? 'translateX(0)' : 'translateX(-50%)'
+                    transform: idx === timeLabels.length - 1 ? 'translateX(-50%)' : idx === 0 ? 'translateX(0)' : 'translateX(-50%)'
                   }}
                 >
                   {label}
@@ -288,12 +322,12 @@ export function BubbleFlowChart({
           <div className="flex items-center justify-end gap-4 mt-4 text-xs text-muted-foreground">
             <span>버블 크기 = 인용률</span>
             <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded-full bg-muted-foreground/50" />
+              <div className="w-2 h-2 rounded-full bg-muted-foreground/30" />
               <span>{minRate}%</span>
             </div>
             <span>~</span>
             <div className="flex items-center gap-1.5">
-              <div className="w-6 h-6 rounded-full bg-muted-foreground/50" />
+              <div className="w-7 h-7 rounded-full bg-muted-foreground/30" />
               <span>{maxRate}%</span>
             </div>
           </div>
