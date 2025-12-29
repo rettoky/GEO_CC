@@ -10,7 +10,6 @@ import { LoadingSkeleton } from '@/components/analysis/LoadingSkeleton'
 import { ErrorMessage } from '@/components/analysis/ErrorMessage'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Select,
   SelectContent,
@@ -214,22 +213,20 @@ export function DetailTab() {
         </Select>
       </div>
 
-      <ScrollArea className="h-[calc(100vh-400px)] pr-4">
-        <div className="space-y-3">
-          {filteredAnalyses.map((analysis) => (
-            <div
-              key={analysis.id}
-              onClick={() => handleSelectAnalysis(analysis)}
-              className="cursor-pointer"
-            >
-              <AnalysisListItem
-                analysis={analysis}
-                onDelete={handleDelete}
-                isDeleting={isDeleting === analysis.id}
-              />
-            </div>
-          ))}
-        </div>
+      <div className="space-y-3 pb-8">
+        {filteredAnalyses.map((analysis) => (
+          <div
+            key={analysis.id}
+            onClick={() => handleSelectAnalysis(analysis)}
+            className="cursor-pointer"
+          >
+            <AnalysisListItem
+              analysis={analysis}
+              onDelete={handleDelete}
+              isDeleting={isDeleting === analysis.id}
+            />
+          </div>
+        ))}
 
         {hasMore && (
           <div className="flex justify-center py-4">
@@ -238,7 +235,7 @@ export function DetailTab() {
             </Button>
           </div>
         )}
-      </ScrollArea>
+      </div>
     </div>
   )
 }
