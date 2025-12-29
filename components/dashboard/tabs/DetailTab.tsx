@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useDashboard } from '@/contexts/DashboardContext'
 import { useTrackingSection } from '@/contexts/TrackingSectionContext'
 import { useInfiniteAnalyses } from '@/hooks/useInfiniteAnalyses'
@@ -34,16 +34,7 @@ export function DetailTab() {
   const [detailAnalysis, setDetailAnalysis] = useState<Analysis | null>(selectedAnalysis)
   const [filterSectionId, setFilterSectionId] = useState<string | null>(null)
 
-  // 선택된 분석 ID가 변경되면 상세 데이터 로드
-  useEffect(() => {
-    if (selectedAnalysisId && !selectedAnalysis) {
-      loadAnalysisDetail(selectedAnalysisId)
-    } else if (selectedAnalysis) {
-      setDetailAnalysis(selectedAnalysis)
-    }
-  }, [selectedAnalysisId, selectedAnalysis])
-
-  const loadAnalysisDetail = async (id: string) => {
+  const loadAnalysisDetail = useCallback(async (id: string) => {
     setLoadingDetail(true)
     try {
       const supabase = createClient()
@@ -65,9 +56,18 @@ export function DetailTab() {
     } finally {
       setLoadingDetail(false)
     }
-  }
+  }, [toast])
 
-  const handleDelete = async (id: string): Promise<boolean> => {
+  // 선택된 분석 ID가 변경되면 상세 데이터 로드
+  useEffect(() => {
+    if (selectedAnalysisId && !selectedAnalysis) {
+      loadAnalysisDetail(selectedAnalysisId)
+    } else if (selectedAnalysis) {
+      setDetailAnalysis(selectedAnalysis)
+    }
+  }, [selectedAnalysisId, selectedAnalysis, loadAnalysisDetail])
+
+  const handleDelete = useCallback(async (id: string): Promise<boolean> => {
     const success = await deleteAnalysis(id)
     if (success) {
       toast({
@@ -87,12 +87,21 @@ export function DetailTab() {
       })
     }
     return success
-  }
+  }, [deleteAnalysis, toast, selectedAnalysisId, selectAnalysis])
 
-  const handleSelectAnalysis = (analysis: Analysis) => {
+  const handleSelectAnalysis = useCallback((analysis: Analysis) => {
     selectAnalysis(analysis.id, analysis)
     setDetailAnalysis(analysis)
-  }
+  }, [selectAnalysis])
+
+  const handleBackToList = useCallback(() => {
+    selectAnalysis(null)
+    setDetailAnalysis(null)
+  }, [selectAnalysis])
+
+  const handleSectionFilterChange = useCallback((value: string) => {
+    setFilterSectionId(value === 'all' ? null : value)
+  }, [])
 
   // 필터 적용
   const filteredAnalyses = analyses.filter((analysis) => {
@@ -146,10 +155,7 @@ export function DetailTab() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => {
-            selectAnalysis(null)
-            setDetailAnalysis(null)
-          }}
+          onClick={handleBackToList}
         >
           &larr; 목록으로 돌아가기
         </Button>
@@ -191,7 +197,7 @@ export function DetailTab() {
         </p>
         <Select
           value={filterSectionId || 'all'}
-          onValueChange={(value) => setFilterSectionId(value === 'all' ? null : value)}
+          onValueChange={handleSectionFilterChange}
         >
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="모든 섹션" />

@@ -1,7 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useRef, useCallback } from 'react'
 import { useDashboard } from '@/contexts/DashboardContext'
 import { useTrackingSection } from '@/contexts/TrackingSectionContext'
 import { useAnalysis } from '@/hooks/useAnalysis'
@@ -24,6 +23,7 @@ import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 import { analyzeBatchVariations, type BatchAnalysisProgress } from '@/lib/analysis/variation-orchestrator'
 import type { AnalysisResults, AnalysisSummary } from '@/types'
+import type { GeneratedVariation } from '@/types/queryVariations'
 
 interface QueryResultHistory {
   id: string
@@ -39,9 +39,8 @@ interface QueryResultHistory {
 const MAX_HISTORY_SIZE = 100
 
 export function NewAnalysisTab() {
-  const router = useRouter()
   const { selectAnalysis, setActiveTab } = useDashboard()
-  const { sections, selectSection } = useTrackingSection()
+  const { selectSection } = useTrackingSection()
   const { analyze, isLoading, isSuccess, data, error, logs, progress } = useAnalysis()
   const { toast } = useToast()
 
@@ -62,23 +61,13 @@ export function NewAnalysisTab() {
 
   const allQueryResultsRef = useRef<AllQueryResultsViewHandle>(null)
 
-  const handleQueryInput = (inputData: QueryInputData) => {
+  const handleQueryInput = useCallback((inputData: QueryInputData) => {
     setQueryData(inputData)
     setVariations([])
     setShowVariationGenerator(false)
-  }
+  }, [setQueryData, setVariations, setShowVariationGenerator])
 
-  const handleStartAnalysis = async () => {
-    if (!queryData) return
-
-    if (variations.length > 0) {
-      await handleBatchAnalysis()
-    } else {
-      await handleSingleAnalysis()
-    }
-  }
-
-  const handleSingleAnalysis = async () => {
+  const handleSingleAnalysis = useCallback(async () => {
     if (!queryData) return
 
     try {
@@ -118,13 +107,13 @@ export function NewAnalysisTab() {
         variant: 'destructive',
       })
     }
-  }
+  }, [queryData, analyze, toast])
 
-  const handleRemoveFromHistory = (id: string) => {
+  const handleRemoveFromHistory = useCallback((id: string) => {
     setQueryHistory((prev) => prev.filter((q) => q.id !== id))
-  }
+  }, [])
 
-  const handleBatchAnalysis = async () => {
+  const handleBatchAnalysis = useCallback(async () => {
     if (!queryData) return
 
     setIsBatchAnalyzing(true)
@@ -168,7 +157,58 @@ export function NewAnalysisTab() {
     } finally {
       setIsBatchAnalyzing(false)
     }
-  }
+  }, [queryData, variations, toast, selectAnalysis, setActiveTab, selectedSectionId])
+
+  const handleStartAnalysis = useCallback(async () => {
+    if (!queryData) return
+
+    if (variations.length > 0) {
+      await handleBatchAnalysis()
+    } else {
+      await handleSingleAnalysis()
+    }
+  }, [queryData, variations, handleBatchAnalysis, handleSingleAnalysis])
+
+  const handleSectionCreated = useCallback((sectionId: string) => {
+    setSelectedSectionId(sectionId)
+    selectSection(sectionId)
+    toast({
+      title: '섹션 생성 완료',
+      description: '새 트래킹 섹션이 생성되었습니다.',
+    })
+  }, [selectSection, toast])
+
+  const handleVariationsGenerated = useCallback((vars: GeneratedVariation[]) => {
+    setVariations(vars)
+    toast({
+      title: '변형 생성 완료',
+      description: `${vars.length}개의 쿼리 변형이 생성되었습니다`,
+    })
+  }, [setVariations, toast])
+
+  const handleVariationsRegenerated = useCallback((vars: GeneratedVariation[]) => {
+    setVariations(vars)
+    toast({
+      title: '변형 재생성 완료',
+      description: `${vars.length}개의 쿼리 변형이 생성되었습니다`,
+    })
+  }, [setVariations, toast])
+
+  const handleToggleVariationGenerator = useCallback(() => {
+    setShowVariationGenerator(true)
+  }, [setShowVariationGenerator])
+
+  const handleDomainCitationClick = useCallback(() => {
+    allQueryResultsRef.current?.setFilterAndScroll('myDomain')
+  }, [])
+
+  const handleBrandMentionClick = useCallback(() => {
+    allQueryResultsRef.current?.setFilterAndScroll('brandMention')
+  }, [])
+
+  const handleToggleComparison = useCallback(() => {
+    setShowComparison(!showComparison)
+  }, [showComparison])
 
   const isAnalyzing = isLoading || isBatchAnalyzing
 
@@ -178,14 +218,7 @@ export function NewAnalysisTab() {
       <SectionSelector
         selectedSectionId={selectedSectionId}
         onSectionChange={setSelectedSectionId}
-        onSectionCreated={(sectionId) => {
-          setSelectedSectionId(sectionId)
-          selectSection(sectionId)
-          toast({
-            title: '섹션 생성 완료',
-            description: '새 트래킹 섹션이 생성되었습니다.',
-          })
-        }}
+        onSectionCreated={handleSectionCreated}
         defaultDomain={queryData?.domain}
         defaultBrand={queryData?.brand}
       />
@@ -195,7 +228,7 @@ export function NewAnalysisTab() {
       {queryData && !showVariationGenerator && variations.length === 0 && !isAnalyzing && (
         <div className="flex justify-center">
           <Button
-            onClick={() => setShowVariationGenerator(true)}
+            onClick={handleToggleVariationGenerator}
             variant="outline"
             size="lg"
           >
@@ -207,13 +240,7 @@ export function NewAnalysisTab() {
       {showVariationGenerator && queryData && variations.length === 0 && (
         <QueryVariationGenerator
           baseQuery={queryData.query}
-          onVariationsGenerated={(vars) => {
-            setVariations(vars)
-            toast({
-              title: '변형 생성 완료',
-              description: `${vars.length}개의 쿼리 변형이 생성되었습니다`,
-            })
-          }}
+          onVariationsGenerated={handleVariationsGenerated}
         />
       )}
 
@@ -222,13 +249,7 @@ export function NewAnalysisTab() {
           <div className="lg:col-span-1">
             <QueryVariationGenerator
               baseQuery={queryData.query}
-              onVariationsGenerated={(vars) => {
-                setVariations(vars)
-                toast({
-                  title: '변형 재생성 완료',
-                  description: `${vars.length}개의 쿼리 변형이 생성되었습니다`,
-                })
-              }}
+              onVariationsGenerated={handleVariationsRegenerated}
               compact
               hasVariations
             />
@@ -290,7 +311,7 @@ export function NewAnalysisTab() {
                 <Button
                   variant={showComparison ? 'default' : 'outline'}
                   size="sm"
-                  onClick={() => setShowComparison(!showComparison)}
+                  onClick={handleToggleComparison}
                 >
                   {showComparison ? '비교 숨기기' : `${queryHistory.length}개 쿼리 비교`}
                 </Button>
@@ -317,12 +338,8 @@ export function NewAnalysisTab() {
             results={data.data.results}
             myDomain={queryData?.domain}
             myBrand={queryData?.brand}
-            onDomainCitationClick={() => {
-              allQueryResultsRef.current?.setFilterAndScroll('myDomain')
-            }}
-            onBrandMentionClick={() => {
-              allQueryResultsRef.current?.setFilterAndScroll('brandMention')
-            }}
+            onDomainCitationClick={handleDomainCitationClick}
+            onBrandMentionClick={handleBrandMentionClick}
           />
 
           <LLMComparisonChart

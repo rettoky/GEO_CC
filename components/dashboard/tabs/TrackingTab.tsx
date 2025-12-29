@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Select,
   SelectContent,
@@ -104,29 +104,29 @@ export function TrackingTab() {
     return aggregateData(trackingData, aggregation)
   }, [trackingData, aggregation])
 
-  // Y축 동적 범위 계산 (데이터에 밀착 + 약간의 여유)
-  const yAxisDomain = useMemo((): [number, number] => {
-    if (chartData.length === 0) return [0, 50]
+  // LLM별 Y축 동적 범위 계산 (각 LLM 데이터에 밀착)
+  const llmYAxisDomains = useMemo(() => {
+    const calculateDomain = (values: number[]): [number, number] => {
+      const filtered = values.filter(v => v !== null && v !== undefined && v > 0)
+      if (filtered.length === 0) return [0, 50]
 
-    const allValues = chartData.flatMap(d => [
-      d.citationRate,
-      d.brandExposure,
-      d.perplexity,
-      d.chatgpt,
-      d.gemini,
-    ]).filter(v => v !== null && v !== undefined)
+      const maxValue = Math.max(...filtered)
+      const minValue = Math.min(...filtered)
 
-    if (allValues.length === 0) return [0, 50]
+      // 상한: 최대값 + 15% 여유, 5 단위로 올림
+      const upperBound = Math.ceil((maxValue * 1.15) / 5) * 5
+      // 하한: 최소값 - 15% 여유, 5 단위로 내림 (0 이상)
+      const lowerBound = Math.max(0, Math.floor((minValue * 0.85) / 5) * 5)
 
-    const maxValue = Math.max(...allValues)
-    const minValue = Math.min(...allValues)
+      // 최소 간격 보장
+      return [lowerBound, Math.max(upperBound, lowerBound + 10)]
+    }
 
-    // 상한: 최대값 + 10% 여유, 5 단위로 올림
-    const upperBound = Math.ceil((maxValue * 1.1) / 5) * 5
-    // 하한: 최소값이 10% 이상이면 약간 내려서 시작
-    const lowerBound = minValue > 10 ? Math.floor((minValue * 0.8) / 5) * 5 : 0
-
-    return [lowerBound, Math.max(upperBound, lowerBound + 20)]
+    return {
+      perplexity: calculateDomain(chartData.map(d => d.perplexity)),
+      chatgpt: calculateDomain(chartData.map(d => d.chatgpt)),
+      gemini: calculateDomain(chartData.map(d => d.gemini)),
+    }
   }, [chartData])
 
   // 드릴다운용 분석 데이터 필터링
@@ -156,6 +156,22 @@ export function TrackingTab() {
         createdAt: a.created_at,
       }))
   }, [analyses, drilldown.date])
+
+  const handleChartViewChange = useCallback((value: string) => {
+    setChartView(value as typeof chartView)
+  }, [])
+
+  const handleAggregationChange = useCallback((value: string) => {
+    setAggregation(value as AggregationType)
+  }, [])
+
+  const handleDateRangeChange = useCallback((value: string) => {
+    setDateRange(value as typeof dateRange)
+  }, [])
+
+  const handleCloseDrilldown = useCallback(() => {
+    setDrilldown({ isOpen: false })
+  }, [])
 
   // 섹션이 선택되지 않은 경우
   if (!selectedSectionId) {
@@ -237,7 +253,7 @@ export function TrackingTab() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {/* 차트 뷰 선택 */}
-          <Tabs value={chartView} onValueChange={(v) => setChartView(v as typeof chartView)}>
+          <Tabs value={chartView} onValueChange={handleChartViewChange}>
             <TabsList className="grid grid-cols-2 w-auto">
               <TabsTrigger value="basic" className="flex items-center gap-1 px-3">
                 <BarChart3 className="h-4 w-4" />
@@ -250,7 +266,7 @@ export function TrackingTab() {
             </TabsList>
           </Tabs>
           {/* 집계 단위 */}
-          <Select value={aggregation} onValueChange={(value) => setAggregation(value as AggregationType)}>
+          <Select value={aggregation} onValueChange={handleAggregationChange}>
             <SelectTrigger className="w-24">
               <SelectValue />
             </SelectTrigger>
@@ -261,7 +277,7 @@ export function TrackingTab() {
             </SelectContent>
           </Select>
           {/* 기간 필터 */}
-          <Select value={dateRange} onValueChange={(value) => setDateRange(value as typeof dateRange)}>
+          <Select value={dateRange} onValueChange={handleDateRangeChange}>
             <SelectTrigger className="w-28">
               <SelectValue />
             </SelectTrigger>
@@ -311,7 +327,7 @@ export function TrackingTab() {
                         <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
                         <XAxis dataKey="date" tick={false} axisLine={{ stroke: 'hsl(var(--border))' }} />
                         <YAxis
-                          domain={yAxisDomain}
+                          domain={llmYAxisDomains.perplexity}
                           allowDataOverflow={true}
                           tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
                           axisLine={false}
@@ -349,7 +365,7 @@ export function TrackingTab() {
                         <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
                         <XAxis dataKey="date" tick={false} axisLine={{ stroke: 'hsl(var(--border))' }} />
                         <YAxis
-                          domain={yAxisDomain}
+                          domain={llmYAxisDomains.chatgpt}
                           allowDataOverflow={true}
                           tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
                           axisLine={false}
@@ -387,7 +403,7 @@ export function TrackingTab() {
                         <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
                         <XAxis dataKey="date" tick={false} axisLine={{ stroke: 'hsl(var(--border))' }} />
                         <YAxis
-                          domain={yAxisDomain}
+                          domain={llmYAxisDomains.gemini}
                           allowDataOverflow={true}
                           tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
                           axisLine={false}
@@ -420,7 +436,6 @@ export function TrackingTab() {
             <CalendarHeatmap
               data={trackingData}
               title="분석 활동 캘린더"
-              description="날짜별 평균 인용률을 GitHub 스타일로 표시합니다"
             />
           </div>
         </>
@@ -434,7 +449,7 @@ export function TrackingTab() {
       {/* 드릴다운 모달 */}
       <DrilldownModal
         isOpen={drilldown.isOpen}
-        onClose={() => setDrilldown({ isOpen: false })}
+        onClose={handleCloseDrilldown}
         date={drilldown.date}
         llm={drilldown.llm}
         analyses={drilldownAnalyses}
