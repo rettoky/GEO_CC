@@ -148,13 +148,13 @@ export function CalendarHeatmap({
         <CardContent className="pt-2">
           <div className="overflow-x-auto">
             {/* 월 레이블 */}
-            <div className="flex mb-1 ml-8">
+            <div className="flex mb-2 ml-10">
               {monthLabels.map(({ month, weekIndex }, idx) => (
                 <div
                   key={idx}
-                  className="text-xs text-muted-foreground"
+                  className="text-sm text-muted-foreground"
                   style={{
-                    marginLeft: idx === 0 ? weekIndex * 14 : (monthLabels[idx].weekIndex - monthLabels[idx - 1].weekIndex - 1) * 14,
+                    marginLeft: idx === 0 ? weekIndex * 22 : (monthLabels[idx].weekIndex - monthLabels[idx - 1].weekIndex - 1) * 22,
                     width: 'auto',
                   }}
                 >
@@ -165,11 +165,11 @@ export function CalendarHeatmap({
 
             <div className="flex">
               {/* 요일 레이블 */}
-              <div className="flex flex-col gap-[2px] mr-1">
+              <div className="flex flex-col gap-[3px] mr-2">
                 {WEEKDAYS.map((day, idx) => (
                   <div
                     key={day}
-                    className="text-xs text-muted-foreground h-[12px] flex items-center justify-end pr-1"
+                    className="text-xs text-muted-foreground h-[18px] flex items-center justify-end pr-1"
                     style={{ visibility: idx % 2 === 1 ? 'visible' : 'hidden' }}
                   >
                     {day}
@@ -178,9 +178,9 @@ export function CalendarHeatmap({
               </div>
 
               {/* 캘린더 그리드 */}
-              <div className="flex gap-[2px]">
+              <div className="flex gap-[3px]">
                 {calendarWeeks.map((week, weekIdx) => (
-                  <div key={weekIdx} className="flex flex-col gap-[2px]">
+                  <div key={weekIdx} className="flex flex-col gap-[3px]">
                     {week.map(({ date, dateStr, data: dayData }) => {
                       const isToday = dateStr === new Date().toISOString().split('T')[0]
                       const isFuture = date > new Date()
@@ -191,8 +191,8 @@ export function CalendarHeatmap({
                           <TooltipTrigger asChild>
                             <div
                               className={cn(
-                                'w-[12px] h-[12px] rounded-[2px] transition-all',
-                                isToday && 'ring-1 ring-primary ring-offset-1',
+                                'w-[18px] h-[18px] rounded-[3px] transition-all cursor-pointer hover:ring-2 hover:ring-primary/50',
+                                isToday && 'ring-2 ring-primary ring-offset-1',
                                 isFuture && 'opacity-30'
                               )}
                               style={{
@@ -229,13 +229,13 @@ export function CalendarHeatmap({
             </div>
 
             {/* 범례 */}
-            <div className="flex items-center justify-end gap-1 mt-3 text-xs text-muted-foreground">
+            <div className="flex items-center justify-end gap-2 mt-4 text-sm text-muted-foreground">
               <span>낮음</span>
-              <div className="flex gap-[2px]">
+              <div className="flex gap-[3px]">
                 {[0, 5, 15, 35, 60].map((value, idx) => (
                   <div
                     key={idx}
-                    className="w-[12px] h-[12px] rounded-[2px]"
+                    className="w-[18px] h-[18px] rounded-[3px]"
                     style={{ backgroundColor: getIntensityColor(value) }}
                   />
                 ))}
