@@ -98,7 +98,7 @@ export function SentimentScoreChart({ data }: SentimentTrackingProps) {
       <CardContent>
         <div className="h-[250px]">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData}>
+            <LineChart data={chartData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis
                 dataKey="date"
@@ -175,7 +175,7 @@ export function SentimentDistributionChart({ data }: SentimentTrackingProps) {
         <div className="h-[250px]">
           <ResponsiveContainer width="100%" height="100%">
             {useAreaChart ? (
-              <LineChart data={chartData}>
+              <LineChart data={chartData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                 <XAxis
                   dataKey="date"
@@ -202,7 +202,7 @@ export function SentimentDistributionChart({ data }: SentimentTrackingProps) {
                 <Line type="monotone" dataKey="부정" stroke={SENTIMENT_COLORS.negative} strokeWidth={2} dot={false} />
               </LineChart>
             ) : (
-              <BarChart data={chartData}>
+              <BarChart data={chartData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                 <XAxis
                   dataKey="date"
