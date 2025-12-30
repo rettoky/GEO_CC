@@ -3,7 +3,7 @@
 import { useDashboard, ActiveTab } from '@/contexts/DashboardContext'
 import { useTrackingSection } from '@/contexts/TrackingSectionContext'
 import { cn } from '@/lib/utils'
-import { PlusCircle, TrendingUp, History, LucideIcon, ChevronDown } from 'lucide-react'
+import { PlusCircle, TrendingUp, History, LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {

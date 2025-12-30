@@ -79,7 +79,7 @@ export function VisibilityDashboard({
   }
 
   const visibilityGrade = getVisibilityGrade(visibilityRate)
-  const GradeIcon = visibilityGrade.icon
+  const _GradeIcon = visibilityGrade.icon
 
   // 노출되지 않은 LLM 목록 (향후 기능 확장용)
   const _notExposedLLMs = Object.entries(LLM_NAMES)

@@ -2,6 +2,8 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ErrorBoundary } from '@/components/ui/error-boundary'
+import { CompactChartErrorFallback } from '@/components/ui/chart-error-fallback'
 import { TrendingUp, TrendingDown, Minus, Quote, Eye, Trophy, BarChart3 } from 'lucide-react'
 import { LineChart, Line, ResponsiveContainer } from 'recharts'
 import { cn } from '@/lib/utils'

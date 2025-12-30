@@ -97,7 +97,7 @@ export function CalendarHeatmap({
     // 일요일로 조정
     startDate.setDate(startDate.getDate() - startDate.getDay())
 
-    let currentDate = new Date(startDate)
+    const currentDate = new Date(startDate)
     let lastMonth = -1
 
     while (currentDate <= today) {
@@ -206,7 +206,7 @@ export function CalendarHeatmap({
             <div className="flex">
               {/* 요일 레이블 */}
               <div className="flex flex-col gap-[4px] mr-2">
-                {WEEKDAYS.map((day, idx) => (
+                {WEEKDAYS.map((day) => (
                   <div
                     key={day}
                     className="text-sm text-muted-foreground h-[28px] flex items-center justify-end pr-2 w-10"

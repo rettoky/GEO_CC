@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/accordion'
 import { Badge } from '@/components/ui/badge'
 import { z } from 'zod'
-import { Search, Globe, Tag, ArrowRight, HelpCircle, Wand2, Loader2, Users, X, Plus, Settings2, ChevronRight } from 'lucide-react'
+import { Search, Globe, Tag, HelpCircle, Wand2, Loader2, Users, X, Plus, Settings2, ChevronRight } from 'lucide-react'
 import { LABELS, PLACEHOLDERS } from '@/lib/constants/labels'
 
 // 도움말 데이터
