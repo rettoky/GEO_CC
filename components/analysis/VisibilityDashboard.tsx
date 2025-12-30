@@ -28,6 +28,7 @@ interface VisibilityDashboardProps {
   results: AnalysisResults
   myDomain?: string
   myBrand?: string
+  brandAliases?: string[]
   onDomainCitationClick?: () => void
   onBrandMentionClick?: () => void
 }
@@ -47,6 +48,7 @@ export function VisibilityDashboard({
   results,
   myDomain,
   myBrand,
+  brandAliases = [],
   onDomainCitationClick,
   onBrandMentionClick,
 }: VisibilityDashboardProps) {
@@ -462,47 +464,51 @@ export function VisibilityDashboard({
                 )
               })()}
 
-              {/* LLM별 노출 상세 */}
+              {/* LLM별 브랜드 언급 상세 */}
               <div className="pt-6 border-t border-border/50">
-                <h3 className="text-sm font-semibold mb-4 text-muted-foreground uppercase tracking-wider">LLM별 노출 상세</h3>
+                <h3 className="text-sm font-semibold mb-4 text-muted-foreground uppercase tracking-wider">LLM별 브랜드 언급 상세</h3>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   {ACTIVE_LLMS.map((key) => {
                     const name = LLM_NAMES[key as keyof typeof LLM_NAMES]
-                    const isVisible = myDomainLLMs.includes(name)
-                    const result = results[key as keyof AnalysisResults]
-                    const normalizedMyDomain = myDomain?.toLowerCase().replace(/^www\./, '')
-                    const citationCount = result?.citations.filter(
-                      (c) => {
-                        if (!myDomain) return false
-                        const citationDomain = c.domain?.toLowerCase().replace(/^www\./, '')
-                        return citationDomain && (citationDomain.includes(normalizedMyDomain!) || normalizedMyDomain!.includes(citationDomain))
-                      }
-                    ).length || 0
+                    const llmKey = key as LLMType
+
+                    // summary.brandMentionAnalysis에서 해당 LLM이 언급되었는지 확인
+                    // 이 데이터는 서버에서 모든 쿼리를 분석한 정확한 결과입니다
+                    const mentionedInLLMs = summary.brandMentionAnalysis?.myBrand?.mentionedInLLMs || []
+                    const isMentioned = mentionedInLLMs.includes(llmKey)
+
+                    // 총 언급 횟수 (전체, LLM별 상세 횟수는 현재 저장되지 않음)
+                    const totalMentionCount = summary.brandMentionAnalysis?.myBrand?.mentionCount || 0
+                    // 언급된 LLM 수로 대략적인 분배 (정확한 LLM별 횟수가 없을 때)
+                    const mentionedLLMCount = mentionedInLLMs.length
+                    const estimatedCount = isMentioned && mentionedLLMCount > 0
+                      ? Math.round(totalMentionCount / mentionedLLMCount)
+                      : 0
 
                     return (
                       <div
                         key={key}
-                        className={`relative p-4 rounded-xl border transition-all duration-200 ${isVisible
+                        className={`relative p-4 rounded-xl border transition-all duration-200 ${isMentioned
                           ? 'bg-green-50/50 border-green-200 dark:bg-green-900/10 dark:border-green-800'
                           : 'bg-muted/30 border-border opacity-70'
                           }`}
                       >
                         <div className="flex items-center justify-between mb-3">
                           <span className="text-sm font-bold">{name}</span>
-                          {isVisible ? (
+                          {isMentioned ? (
                             <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
                           ) : (
                             <XCircle className="h-5 w-5 text-muted-foreground" />
                           )}
                         </div>
                         <div className="flex items-end gap-2">
-                          <span className={`text-2xl font-bold ${isVisible ? 'text-foreground' : 'text-muted-foreground'}`}>
-                            {citationCount}
+                          <span className={`text-2xl font-bold ${isMentioned ? 'text-foreground' : 'text-muted-foreground'}`}>
+                            {isMentioned ? (mentionedLLMCount === 1 ? totalMentionCount : `~${estimatedCount}`) : 0}
                           </span>
-                          <span className="text-xs text-muted-foreground mb-1">회 인용</span>
+                          <span className="text-xs text-muted-foreground mb-1">회 언급</span>
                         </div>
-                        <div className={`text-xs mt-2 font-medium ${isVisible ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`}>
-                          {isVisible ? '노출됨' : '미노출'}
+                        <div className={`text-xs mt-2 font-medium ${isMentioned ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`}>
+                          {isMentioned ? '언급됨' : '미언급'}
                         </div>
                       </div>
                     )

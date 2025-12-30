@@ -492,6 +492,7 @@ export function AnalysisDetailClient({ analysis }: AnalysisDetailClientProps) {
         results={results}
         myDomain={analysis.my_domain || undefined}
         myBrand={analysis.my_brand || undefined}
+        brandAliases={analysis.brand_aliases || []}
         onDomainCitationClick={() => {
           allQueryResultsRef.current?.setFilterAndScroll('myDomain')
         }}

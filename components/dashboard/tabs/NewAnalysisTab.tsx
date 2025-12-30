@@ -338,6 +338,7 @@ export function NewAnalysisTab() {
             results={data.data.results}
             myDomain={queryData?.domain}
             myBrand={queryData?.brand}
+            brandAliases={queryData?.brandAliases || []}
             onDomainCitationClick={handleDomainCitationClick}
             onBrandMentionClick={handleBrandMentionClick}
           />

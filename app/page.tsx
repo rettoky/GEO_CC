@@ -305,6 +305,7 @@ export default function Home() {
             results={data.data.results}
             myDomain={queryData?.domain}
             myBrand={queryData?.brand}
+            brandAliases={queryData?.brandAliases || []}
             onDomainCitationClick={() => {
               allQueryResultsRef.current?.setFilterAndScroll('myDomain')
             }}
