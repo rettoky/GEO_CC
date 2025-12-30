@@ -20,6 +20,8 @@ import { Badge } from '@/components/ui/badge'
 import { BarChart3, PieChart as PieChartIcon, Building2 } from 'lucide-react'
 import type { AnalysisResults, AnalysisSummary, BrandMentionAnalysis, LLMType } from '@/types'
 import { ACTIVE_LLMS } from '@/lib/constants/labels'
+import { BRAND_PALETTE } from '@/lib/constants/chart-colors'
+import { getLLMName } from '@/lib/constants/llm-config'
 
 interface BrandComparisonChartProps {
   results: AnalysisResults
@@ -29,26 +31,17 @@ interface BrandComparisonChartProps {
   brandMentionAnalysis?: BrandMentionAnalysis
 }
 
-// 색상 팔레트
-const BRAND_COLORS = [
-  'hsl(210, 80%, 55%)', // 내 브랜드 (파랑)
-  'hsl(25, 90%, 55%)',  // 경쟁사 1 (주황)
-  'hsl(150, 60%, 45%)', // 경쟁사 2 (녹색)
-  'hsl(280, 60%, 55%)', // 경쟁사 3 (보라)
-  'hsl(350, 70%, 55%)', // 경쟁사 4 (빨강)
-  'hsl(45, 85%, 50%)',  // 경쟁사 5 (노랑)
-  'hsl(180, 50%, 45%)', // 경쟁사 6 (청록)
-  'hsl(320, 60%, 55%)', // 경쟁사 7 (핑크)
-]
+// 중앙화된 색상 팔레트 사용
+const BRAND_COLORS = BRAND_PALETTE
 
-const MY_BRAND_COLOR = 'hsl(210, 80%, 55%)'
-const COMPETITOR_COLOR = 'hsl(25, 90%, 55%)'
+const MY_BRAND_COLOR = BRAND_PALETTE[0] // blue
+const COMPETITOR_COLOR = BRAND_PALETTE[3] // orange
 
 const LLM_NAMES: Record<string, string> = {
-  perplexity: 'Perplexity',
-  chatgpt: 'ChatGPT',
-  gemini: 'Gemini',
-  claude: 'Claude',
+  perplexity: getLLMName('perplexity'),
+  chatgpt: getLLMName('chatgpt'),
+  gemini: getLLMName('gemini'),
+  claude: getLLMName('claude'),
 }
 
 /**
@@ -169,7 +162,7 @@ export function LLMComparisonChart({
   // 데이터가 없으면 안내 메시지
   if (!hasBrandData) {
     return (
-      <Card className="border-none shadow-md">
+      <Card className="glass-card shadow-md animate-fade-in-up">
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-xl">
             <BarChart3 className="h-6 w-6 text-primary" />
@@ -205,16 +198,16 @@ export function LLMComparisonChart({
     if (!active || !payload?.length) return null
 
     return (
-      <div className="bg-background border border-border rounded-lg shadow-lg p-3 text-sm">
+      <div className="glass-card rounded-lg shadow-lg p-3 text-sm">
         <p className="font-semibold mb-2">{label}</p>
         {payload.map((entry: TooltipPayloadEntry, index: number) => (
           <p key={index} className="flex items-center gap-2">
             <span
-              className="w-3 h-3 rounded-full"
-              style={{ backgroundColor: entry.color }}
+              className="w-3 h-3 rounded-full chart-glow"
+              style={{ backgroundColor: entry.color, color: entry.color }}
             />
             <span className="text-muted-foreground">{entry.name}:</span>
-            <span className="font-medium">{entry.value}</span>
+            <span className="font-medium number-transition">{entry.value}</span>
           </p>
         ))}
       </div>
@@ -273,12 +266,12 @@ export function LLMComparisonChart({
       : 0
 
   return (
-    <Card className="border-none shadow-md animate-fade-in-up">
+    <Card className="glass-card shadow-md animate-fade-in-up hover-lift">
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-xl">
           <Building2 className="h-6 w-6 text-primary" />
           브랜드 노출 비교
-          <Badge variant="secondary" className="ml-2">
+          <Badge variant="secondary" className="ml-2 number-transition">
             총 {brandMentionAnalysis.totalBrandMentions}회 언급
           </Badge>
         </CardTitle>
@@ -305,7 +298,7 @@ export function LLMComparisonChart({
 
           {/* 브랜드 노출 비교 (수평 막대 차트) */}
           <TabsContent value="comparison" className="mt-0">
-            <div className="h-[300px] w-full">
+            <div className="h-[300px] w-full chart-container">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={brandComparisonData}
@@ -322,8 +315,8 @@ export function LLMComparisonChart({
                     width={100}
                     className="text-muted-foreground"
                   />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="count" name="언급 횟수" radius={[0, 4, 4, 0]}>
+                  <Tooltip content={<CustomTooltip />} animationDuration={200} animationEasing="ease-out" />
+                  <Bar dataKey="count" name="언급 횟수" radius={[0, 4, 4, 0]} animationDuration={600} animationEasing="ease-out">
                     {brandComparisonData.map((entry, index) => (
                       <Cell
                         key={`cell-${index}`}
@@ -356,7 +349,7 @@ export function LLMComparisonChart({
 
           {/* 점유율 파이 차트 */}
           <TabsContent value="share" className="mt-0">
-            <div className="h-[300px] w-full">
+            <div className="h-[300px] w-full chart-container">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -369,6 +362,8 @@ export function LLMComparisonChart({
                     innerRadius={50}
                     dataKey="value"
                     nameKey="name"
+                    animationDuration={800}
+                    animationEasing="ease-out"
                   >
                     {marketShareData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
@@ -376,6 +371,8 @@ export function LLMComparisonChart({
                   </Pie>
                   <Tooltip
                     formatter={(value: number) => [`${value}회`, '언급 횟수']}
+                    animationDuration={200}
+                    animationEasing="ease-out"
                   />
                   <Legend
                     layout="vertical"
@@ -399,7 +396,7 @@ export function LLMComparisonChart({
 
           {/* LLM별 브랜드 노출 분포 */}
           <TabsContent value="llm" className="mt-0">
-            <div className="h-[300px] w-full">
+            <div className="h-[300px] w-full chart-container">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={llmExposureData} barCategoryGap="25%">
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
@@ -409,19 +406,23 @@ export function LLMComparisonChart({
                     className="text-muted-foreground"
                   />
                   <YAxis tick={{ fontSize: 12 }} className="text-muted-foreground" allowDecimals={false} />
-                  <Tooltip content={<CustomTooltip />} />
+                  <Tooltip content={<CustomTooltip />} animationDuration={200} animationEasing="ease-out" />
                   <Legend />
                   <Bar
                     dataKey="내브랜드"
                     name="내 브랜드"
                     fill={MY_BRAND_COLOR}
                     radius={[4, 4, 0, 0]}
+                    animationDuration={600}
+                    animationEasing="ease-out"
                   />
                   <Bar
                     dataKey="경쟁사"
                     name="경쟁사 브랜드 수"
                     fill={COMPETITOR_COLOR}
                     radius={[4, 4, 0, 0]}
+                    animationDuration={600}
+                    animationEasing="ease-out"
                   />
                 </BarChart>
               </ResponsiveContainer>

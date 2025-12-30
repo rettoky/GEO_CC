@@ -10,6 +10,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { getLLMColor, getLLMName } from '@/lib/constants/llm-config'
 import type { Analysis, LLMType } from '@/lib/supabase/types'
 
 interface BubbleFlowChartProps {
@@ -19,11 +20,23 @@ interface BubbleFlowChartProps {
   className?: string
 }
 
-// LLM별 색상 정의 (연한 색상으로 변경 - 중첩 효과용)
+// LLM별 색상 정의 (중앙화된 색상 시스템 사용)
 const LLM_CONFIG: Record<string, { color: string; colorLight: string; label: string }> = {
-  perplexity: { color: '#8b5cf6', colorLight: 'rgba(139, 92, 246, 0.35)', label: 'Perplexity' },
-  chatgpt: { color: '#22c55e', colorLight: 'rgba(34, 197, 94, 0.35)', label: 'ChatGPT' },
-  gemini: { color: '#3b82f6', colorLight: 'rgba(59, 130, 246, 0.35)', label: 'Gemini' },
+  perplexity: {
+    color: getLLMColor('perplexity'),
+    colorLight: `${getLLMColor('perplexity')}59`, // 35% opacity in hex
+    label: getLLMName('perplexity')
+  },
+  chatgpt: {
+    color: getLLMColor('chatgpt'),
+    colorLight: `${getLLMColor('chatgpt')}59`,
+    label: getLLMName('chatgpt')
+  },
+  gemini: {
+    color: getLLMColor('gemini'),
+    colorLight: `${getLLMColor('gemini')}59`,
+    label: getLLMName('gemini')
+  },
 }
 
 // 시간대 레이블
@@ -187,7 +200,7 @@ export function BubbleFlowChart({
 
   return (
     <TooltipProvider>
-      <Card className={cn('overflow-hidden', className)}>
+      <Card className={cn('glass-card overflow-hidden animate-fade-in-up', className)}>
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <div>
@@ -284,7 +297,7 @@ export function BubbleFlowChart({
                   <Tooltip key={idx}>
                     <TooltipTrigger asChild>
                       <div
-                        className="absolute rounded-full cursor-pointer transition-transform hover:scale-125 hover:z-10"
+                        className="absolute rounded-full cursor-pointer data-point-highlight transition-all duration-200"
                         style={{
                           left: `${xPercent}%`,
                           top: yCenter,
@@ -293,10 +306,11 @@ export function BubbleFlowChart({
                           backgroundColor: LLM_CONFIG[bubble.llm].colorLight,
                           transform: `translate(-50%, -50%)`,
                           mixBlendMode: 'multiply',
+                          color: LLM_CONFIG[bubble.llm].color,
                         }}
                       />
                     </TooltipTrigger>
-                    <TooltipContent side="top" className="text-sm">
+                    <TooltipContent side="top" className="text-sm glass-card">
                       <div className="font-medium">{LLM_CONFIG[bubble.llm].label}</div>
                       <div className="text-muted-foreground">{getTimeLabel(bubble.timeSlot)}</div>
                       <div className="mt-1">

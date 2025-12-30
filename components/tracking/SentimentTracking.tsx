@@ -19,6 +19,7 @@ import {
   ReferenceLine,
 } from 'recharts'
 import { ThumbsUp, ThumbsDown, Minus, TrendingUp, TrendingDown } from 'lucide-react'
+import { SENTIMENT_COLORS } from '@/lib/constants/chart-colors'
 import type { SentimentData } from '@/hooks/useTrackingAnalyses'
 
 interface TrackingDataWithSentiment {
@@ -28,12 +29,6 @@ interface TrackingDataWithSentiment {
 
 interface SentimentTrackingProps {
   data: TrackingDataWithSentiment[]
-}
-
-const SENTIMENT_COLORS = {
-  positive: '#22c55e',
-  negative: '#ef4444',
-  neutral: '#94a3b8',
 }
 
 /**
@@ -71,16 +66,16 @@ export function SentimentScoreChart({ data }: SentimentTrackingProps) {
   const isPositiveTrend = latestScore >= avgScore
 
   return (
-    <Card>
+    <Card className="glass-card animate-fade-in-up">
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
               감성 점수 추세
               {isPositiveTrend ? (
-                <TrendingUp className="h-5 w-5 text-green-500" />
+                <TrendingUp className="h-5 w-5 text-green-500 animate-pulse-slow" />
               ) : (
-                <TrendingDown className="h-5 w-5 text-red-500" />
+                <TrendingDown className="h-5 w-5 text-red-500 animate-pulse-slow" />
               )}
             </CardTitle>
             <CardDescription>
@@ -88,7 +83,7 @@ export function SentimentScoreChart({ data }: SentimentTrackingProps) {
             </CardDescription>
           </div>
           <div className="text-right">
-            <div className={`text-2xl font-bold ${latestScore >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            <div className={`text-2xl font-bold number-transition ${latestScore >= 0 ? 'text-green-600' : 'text-red-600'}`}>
               {latestScore >= 0 ? '+' : ''}{latestScore}
             </div>
             <div className="text-xs text-muted-foreground">현재 점수</div>
@@ -96,7 +91,7 @@ export function SentimentScoreChart({ data }: SentimentTrackingProps) {
         </div>
       </CardHeader>
       <CardContent>
-        <div className="h-[250px]">
+        <div className="h-[250px] chart-container">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -123,17 +118,21 @@ export function SentimentScoreChart({ data }: SentimentTrackingProps) {
                   </span>,
                   '감성 점수'
                 ]}
+                animationDuration={200}
+                animationEasing="ease-out"
               />
-              <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="3 3" />
+              <ReferenceLine y={0} stroke={SENTIMENT_COLORS.neutral} strokeDasharray="3 3" />
               <ReferenceLine y={avgScore} stroke="#3b82f6" strokeDasharray="5 5" label={{ value: `평균: ${avgScore}`, fill: '#3b82f6', fontSize: 12 }} />
               <Line
-                type="monotone"
+                type="natural"
                 dataKey="score"
                 name="감성 점수"
                 stroke="#8b5cf6"
                 strokeWidth={2}
                 dot={chartData.length <= 30}
-                activeDot={{ r: 6 }}
+                activeDot={{ r: 6, className: 'data-point-highlight' }}
+                animationDuration={800}
+                animationEasing="ease-in-out"
               />
             </LineChart>
           </ResponsiveContainer>
@@ -174,13 +173,13 @@ export function SentimentDistributionChart({ data }: SentimentTrackingProps) {
   }, [chartData, useAreaChart])
 
   return (
-    <Card>
+    <Card className="glass-card animate-fade-in-up">
       <CardHeader>
         <CardTitle>감성 분포 추세</CardTitle>
         <CardDescription>날짜별 긍정/부정/중립 언급 분포 ({chartData.length}개 데이터)</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="h-[250px]">
+        <div className="h-[250px] chart-container">
           <ResponsiveContainer width="100%" height="100%">
             {useAreaChart ? (
               <LineChart data={chartData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
@@ -203,11 +202,13 @@ export function SentimentDistributionChart({ data }: SentimentTrackingProps) {
                     borderRadius: '8px',
                   }}
                   formatter={(value: number) => [`${value}건`, '']}
+                  animationDuration={200}
+                  animationEasing="ease-out"
                 />
                 <Legend />
-                <Line type="monotone" dataKey="긍정" stroke={SENTIMENT_COLORS.positive} strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="중립" stroke={SENTIMENT_COLORS.neutral} strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="부정" stroke={SENTIMENT_COLORS.negative} strokeWidth={2} dot={false} />
+                <Line type="natural" dataKey="긍정" stroke={SENTIMENT_COLORS.positive} strokeWidth={2} dot={false} animationDuration={800} animationEasing="ease-in-out" />
+                <Line type="natural" dataKey="중립" stroke={SENTIMENT_COLORS.neutral} strokeWidth={2} dot={false} animationDuration={800} animationEasing="ease-in-out" />
+                <Line type="natural" dataKey="부정" stroke={SENTIMENT_COLORS.negative} strokeWidth={2} dot={false} animationDuration={800} animationEasing="ease-in-out" />
               </LineChart>
             ) : (
               <BarChart data={chartData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
@@ -230,11 +231,13 @@ export function SentimentDistributionChart({ data }: SentimentTrackingProps) {
                     borderRadius: '8px',
                   }}
                   formatter={(value: number) => [`${value}건`, '']}
+                  animationDuration={200}
+                  animationEasing="ease-out"
                 />
                 <Legend />
-                <Bar dataKey="긍정" stackId="a" fill={SENTIMENT_COLORS.positive} />
-                <Bar dataKey="중립" stackId="a" fill={SENTIMENT_COLORS.neutral} />
-                <Bar dataKey="부정" stackId="a" fill={SENTIMENT_COLORS.negative} />
+                <Bar dataKey="긍정" stackId="a" fill={SENTIMENT_COLORS.positive} animationDuration={600} animationEasing="ease-out" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="중립" stackId="a" fill={SENTIMENT_COLORS.neutral} animationDuration={600} animationEasing="ease-out" />
+                <Bar dataKey="부정" stackId="a" fill={SENTIMENT_COLORS.negative} animationDuration={600} animationEasing="ease-out" />
               </BarChart>
             )}
           </ResponsiveContainer>
@@ -286,7 +289,7 @@ export function SentimentSummaryChart({ data }: SentimentTrackingProps) {
   }
 
   return (
-    <Card>
+    <Card className="glass-card animate-fade-in-scale">
       <CardHeader>
         <CardTitle>감성 분석 요약</CardTitle>
         <CardDescription>전체 기간 브랜드 감성 분포 (총 {totals.total}건)</CardDescription>
@@ -305,6 +308,8 @@ export function SentimentSummaryChart({ data }: SentimentTrackingProps) {
                   outerRadius={80}
                   paddingAngle={2}
                   dataKey="value"
+                  animationDuration={800}
+                  animationEasing="ease-out"
                 >
                   {pieData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
@@ -317,13 +322,15 @@ export function SentimentSummaryChart({ data }: SentimentTrackingProps) {
                     borderRadius: '8px',
                   }}
                   formatter={(value: number) => [`${value}건`, '']}
+                  animationDuration={200}
+                  animationEasing="ease-out"
                 />
               </PieChart>
             </ResponsiveContainer>
             {/* 중앙 점수 표시 */}
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="text-center">
-                <div className={`text-2xl font-bold ${overallScore >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                <div className={`text-2xl font-bold number-transition ${overallScore >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   {overallScore >= 0 ? '+' : ''}{overallScore}
                 </div>
                 <div className="text-xs text-muted-foreground">종합 점수</div>
