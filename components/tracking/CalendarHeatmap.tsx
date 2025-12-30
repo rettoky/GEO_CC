@@ -175,55 +175,39 @@ export function CalendarHeatmap({
         </CardHeader>
 
         <CardContent className="pt-4">
-          <div className="overflow-x-auto">
-            {/* 월 레이블 */}
-            <div className="flex mb-2 ml-12">
-              {monthLabels.map(({ month, weekIndex, gapCount }, idx) => {
-                // 월별 간격(8px)을 포함한 위치 계산
-                const prevGapCount = idx > 0 ? monthLabels[idx - 1].gapCount : 0
-                const prevWeekIndex = idx > 0 ? monthLabels[idx - 1].weekIndex : 0
-                const baseGap = 32 // 셀 너비(28px) + 기본 간격(4px)
-                const monthGap = 8 // 월 구분 추가 간격
-                const gapDiff = gapCount - prevGapCount
-                const weekDiff = idx === 0 ? weekIndex : weekIndex - prevWeekIndex - 1
-                const marginLeft = weekDiff * baseGap + gapDiff * monthGap
-
-                return (
-                  <div
-                    key={idx}
-                    className="text-sm font-medium text-muted-foreground"
-                    style={{
-                      marginLeft,
-                      width: 'auto',
-                    }}
-                  >
-                    {month}
-                  </div>
-                )
-              })}
+          {/* 반응형 캘린더 컨테이너 */}
+          <div className="w-full">
+            {/* 월 레이블 - 간소화 */}
+            <div className="flex mb-2 pl-8 gap-1 text-xs text-muted-foreground">
+              {monthLabels.filter((_, idx) => idx % 2 === 0 || monthLabels.length <= 4).map(({ month }, idx) => (
+                <span key={idx} className="flex-1 text-center font-medium">
+                  {month}
+                </span>
+              ))}
             </div>
 
-            <div className="flex">
-              {/* 요일 레이블 */}
-              <div className="flex flex-col gap-[4px] mr-2">
-                {WEEKDAYS.map((day) => (
+            <div className="flex gap-1">
+              {/* 요일 레이블 - 축약형 */}
+              <div className="flex flex-col gap-[2px] shrink-0">
+                {WEEKDAYS.map((day, idx) => (
                   <div
                     key={day}
-                    className="text-sm text-muted-foreground h-[28px] flex items-center justify-end pr-2 w-10"
+                    className={cn(
+                      "text-[10px] text-muted-foreground aspect-square flex items-center justify-center w-6",
+                      idx % 2 === 1 && "text-transparent" // 홀수 행 숨김으로 공간 절약
+                    )}
                   >
                     {day}
                   </div>
                 ))}
               </div>
 
-              {/* 캘린더 그리드 - 월별 간격 포함 */}
-              <div className="flex gap-[4px]">
+              {/* 캘린더 그리드 - 반응형 */}
+              <div className="flex-1 grid gap-[2px]" style={{
+                gridTemplateColumns: `repeat(${calendarWeeks.length}, minmax(0, 1fr))`
+              }}>
                 {calendarWeeks.map((week, weekIdx) => (
-                  <div
-                    key={weekIdx}
-                    className="flex flex-col gap-[4px]"
-                    style={{ marginLeft: week.isMonthStart ? 8 : 0 }}
-                  >
+                  <div key={weekIdx} className="flex flex-col gap-[2px]">
                     {week.days.map(({ date, dateStr, data: dayData }) => {
                       const isToday = dateStr === new Date().toISOString().split('T')[0]
                       const isFuture = date > new Date()
@@ -234,8 +218,8 @@ export function CalendarHeatmap({
                           <TooltipTrigger asChild>
                             <div
                               className={cn(
-                                'w-[28px] h-[28px] rounded-md transition-all cursor-pointer hover:ring-2 hover:ring-primary/50 hover:scale-110',
-                                isToday && 'ring-2 ring-primary ring-offset-1',
+                                'aspect-square w-full min-w-[12px] max-w-[24px] rounded-sm transition-all cursor-pointer hover:ring-1 hover:ring-primary/50 hover:scale-105',
+                                isToday && 'ring-1 ring-primary ring-offset-1',
                                 isFuture && 'opacity-30'
                               )}
                               style={{
@@ -273,21 +257,21 @@ export function CalendarHeatmap({
               </div>
             </div>
 
-            {/* 범례 - 실제 데이터 범위 표시 */}
-            <div className="flex items-center justify-end gap-3 mt-6 text-sm text-muted-foreground">
+            {/* 범례 - 컴팩트 */}
+            <div className="flex items-center justify-end gap-2 mt-4 text-xs text-muted-foreground">
               <span>{stats.min}%</span>
-              <div className="flex gap-[4px]">
+              <div className="flex gap-[2px]">
                 {COLOR_LEVELS.light.slice(1).map((color, idx) => (
                   <div
                     key={idx}
-                    className="w-[28px] h-[28px] rounded-md dark:hidden"
+                    className="w-4 h-4 rounded-sm dark:hidden"
                     style={{ backgroundColor: color }}
                   />
                 ))}
                 {COLOR_LEVELS.dark.slice(1).map((color, idx) => (
                   <div
                     key={idx}
-                    className="w-[28px] h-[28px] rounded-md hidden dark:block"
+                    className="w-4 h-4 rounded-sm hidden dark:block"
                     style={{ backgroundColor: color }}
                   />
                 ))}
