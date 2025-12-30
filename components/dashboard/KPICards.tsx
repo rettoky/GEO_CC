@@ -160,46 +160,54 @@ export function KPICards() {
   const { data: kpiData, loading } = useKPIData()
 
   return (
-    <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-      <KPICard
-        title="인용율"
-        value={loading ? '-' : `${kpiData?.citationRate.toFixed(1)}%`}
-        trend={kpiData?.citationTrend}
-        trendLabel="vs 이전 7건"
-        icon={<Quote className="h-4 w-4" />}
-        sparklineData={kpiData?.sparklineData.citation}
-        sparklineColor="#22c55e"
-        loading={loading}
-      />
-      <KPICard
-        title="브랜드 노출률"
-        value={loading ? '-' : `${kpiData?.brandExposure.toFixed(1)}%`}
-        trend={kpiData?.brandTrend}
-        trendLabel="LLM 커버리지"
-        icon={<Eye className="h-4 w-4" />}
-        sparklineData={kpiData?.sparklineData.brand}
-        sparklineColor="#3b82f6"
-        loading={loading}
-      />
-      <KPICard
-        title="경쟁사 순위"
-        value={loading ? '-' : (kpiData?.competitorRank || '-')}
-        subtitle={kpiData?.competitorRank ? '위' : '데이터 없음'}
-        icon={<Trophy className="h-4 w-4" />}
-        sparklineData={kpiData?.sparklineData.rank}
-        sparklineColor="#f59e0b"
-        loading={loading}
-        invertTrend
-      />
-      <KPICard
-        title="총 분석"
-        value={loading ? '-' : kpiData?.totalAnalyses || 0}
-        subtitle={`성공률 ${kpiData?.successRate.toFixed(0)}%`}
-        icon={<BarChart3 className="h-4 w-4" />}
-        sparklineData={kpiData?.sparklineData.analyses}
-        sparklineColor="#8b5cf6"
-        loading={loading}
-      />
-    </div>
+    <ErrorBoundary
+      fallback={(error, reset) => (
+        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+          <CompactChartErrorFallback error={error} onReset={reset} />
+        </div>
+      )}
+    >
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+        <KPICard
+          title="인용율"
+          value={loading ? '-' : `${kpiData?.citationRate.toFixed(1)}%`}
+          trend={kpiData?.citationTrend}
+          trendLabel="vs 이전 7건"
+          icon={<Quote className="h-4 w-4" />}
+          sparklineData={kpiData?.sparklineData.citation}
+          sparklineColor="#22c55e"
+          loading={loading}
+        />
+        <KPICard
+          title="브랜드 노출률"
+          value={loading ? '-' : `${kpiData?.brandExposure.toFixed(1)}%`}
+          trend={kpiData?.brandTrend}
+          trendLabel="LLM 커버리지"
+          icon={<Eye className="h-4 w-4" />}
+          sparklineData={kpiData?.sparklineData.brand}
+          sparklineColor="#3b82f6"
+          loading={loading}
+        />
+        <KPICard
+          title="경쟁사 순위"
+          value={loading ? '-' : (kpiData?.competitorRank || '-')}
+          subtitle={kpiData?.competitorRank ? '위' : '데이터 없음'}
+          icon={<Trophy className="h-4 w-4" />}
+          sparklineData={kpiData?.sparklineData.rank}
+          sparklineColor="#f59e0b"
+          loading={loading}
+          invertTrend
+        />
+        <KPICard
+          title="총 분석"
+          value={loading ? '-' : kpiData?.totalAnalyses || 0}
+          subtitle={`성공률 ${kpiData?.successRate.toFixed(0)}%`}
+          icon={<BarChart3 className="h-4 w-4" />}
+          sparklineData={kpiData?.sparklineData.analyses}
+          sparklineColor="#8b5cf6"
+          loading={loading}
+        />
+      </div>
+    </ErrorBoundary>
   )
 }

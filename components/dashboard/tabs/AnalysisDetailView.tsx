@@ -4,6 +4,8 @@ import { useRef, useState, useCallback } from 'react'
 import { XCircle, Globe, Tag, Search } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { ErrorBoundary } from '@/components/ui/error-boundary'
+import { ChartErrorFallback } from '@/components/ui/chart-error-fallback'
 import { VisibilityDashboard } from '@/components/analysis/VisibilityDashboard'
 import { LLMComparisonChart } from '@/components/analysis/LLMComparisonChart'
 import { CompetitorComparison } from '@/components/analysis/CompetitorComparison'
@@ -407,26 +409,46 @@ export function AnalysisDetailView({ analysis }: AnalysisDetailViewProps) {
         </CardContent>
       </Card>
 
-      <VisibilityDashboard
-        summary={summary}
-        results={results}
-        myDomain={analysis.my_domain || undefined}
-        myBrand={analysis.my_brand || undefined}
-        onDomainCitationClick={() => {
-          allQueryResultsRef.current?.setFilterAndScroll('myDomain')
-        }}
-        onBrandMentionClick={() => {
-          allQueryResultsRef.current?.setFilterAndScroll('brandMention')
-        }}
-      />
+      <ErrorBoundary
+        fallback={(error, reset) => (
+          <ChartErrorFallback
+            error={error}
+            onReset={reset}
+            title="가시성 대시보드를 불러올 수 없습니다"
+          />
+        )}
+      >
+        <VisibilityDashboard
+          summary={summary}
+          results={results}
+          myDomain={analysis.my_domain || undefined}
+          myBrand={analysis.my_brand || undefined}
+          onDomainCitationClick={() => {
+            allQueryResultsRef.current?.setFilterAndScroll('myDomain')
+          }}
+          onBrandMentionClick={() => {
+            allQueryResultsRef.current?.setFilterAndScroll('brandMention')
+          }}
+        />
+      </ErrorBoundary>
 
-      <LLMComparisonChart
-        results={results}
-        summary={summary}
-        myDomain={analysis.my_domain || undefined}
-        myBrand={analysis.my_brand || undefined}
-        brandMentionAnalysis={summary.brandMentionAnalysis}
-      />
+      <ErrorBoundary
+        fallback={(error, reset) => (
+          <ChartErrorFallback
+            error={error}
+            onReset={reset}
+            title="브랜드 노출 비교 차트를 불러올 수 없습니다"
+          />
+        )}
+      >
+        <LLMComparisonChart
+          results={results}
+          summary={summary}
+          myDomain={analysis.my_domain || undefined}
+          myBrand={analysis.my_brand || undefined}
+          brandMentionAnalysis={summary.brandMentionAnalysis}
+        />
+      </ErrorBoundary>
 
       <CompetitorComparison
         results={results}
@@ -454,10 +476,20 @@ export function AnalysisDetailView({ analysis }: AnalysisDetailViewProps) {
       {/* 감성 분석 대시보드 - myBrand에 sentimentAnalysis가 있을 때만 표시 */}
       {summary.brandMentionAnalysis?.myBrand?.sentimentAnalysis &&
        summary.brandMentionAnalysis.myBrand.sentimentAnalysis.length > 0 && (
-        <SentimentDashboard
-          brand={analysis.my_brand || summary.brandMentionAnalysis.myBrand.brand}
-          sentiments={summary.brandMentionAnalysis.myBrand.sentimentAnalysis}
-        />
+        <ErrorBoundary
+          fallback={(error, reset) => (
+            <ChartErrorFallback
+              error={error}
+              onReset={reset}
+              title="감성 분석 대시보드를 불러올 수 없습니다"
+            />
+          )}
+        >
+          <SentimentDashboard
+            brand={analysis.my_brand || summary.brandMentionAnalysis.myBrand.brand}
+            sentiments={summary.brandMentionAnalysis.myBrand.sentimentAnalysis}
+          />
+        </ErrorBoundary>
       )}
 
       <CompetitorComparison
