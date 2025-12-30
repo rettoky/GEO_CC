@@ -32,6 +32,15 @@ export interface QueryAnalysisSection {
 }
 
 /**
+ * 시간별 트렌드 데이터
+ */
+export interface TrendDataPoint {
+  timestamp: string
+  citationCount: number
+  citationRate: number
+}
+
+/**
  * 인용 분석 섹션
  */
 export interface CitationAnalysisSection {
@@ -43,7 +52,7 @@ export interface CitationAnalysisSection {
     myCitations: number
     citationRate: number
   }[]
-  trendData?: any // 시간별 트렌드 (추후 구현)
+  trendData?: TrendDataPoint[] // 시간별 트렌드 (추후 구현)
 }
 
 /**
@@ -66,19 +75,54 @@ export interface CompetitorComparisonSection {
 }
 
 /**
+ * 메타 태그 구조
+ */
+export interface PageMetaTags {
+  title?: string
+  description?: string
+  keywords?: string
+  author?: string
+  robots?: string
+  ogTitle?: string
+  ogDescription?: string
+  ogImage?: string
+  canonical?: string
+}
+
+/**
+ * 콘텐츠 구조
+ */
+export interface PageContentStructure {
+  headings: {
+    h1: string[]
+    h2: string[]
+    h3: string[]
+  }
+  wordCount: number
+  paragraphCount: number
+  imageCount: number
+  linkCount: number
+  hasTableOfContents: boolean
+  hasFAQ: boolean
+  faqCount?: number
+  hasProductInfo: boolean
+  hasReviews: boolean
+}
+
+/**
  * 페이지 구조 인사이트 섹션
  */
 export interface PageStructureInsightsSection {
   myPageAnalysis: {
     url: string
-    metaTags: any
-    contentStructure: any
+    metaTags: PageMetaTags
+    contentStructure: PageContentStructure
   } | null
   competitorPageAnalysis: {
     domain: string
     url: string
-    metaTags: any
-    contentStructure: any
+    metaTags: PageMetaTags
+    contentStructure: PageContentStructure
   }[]
   recommendations: RecommendationItem[]
 }

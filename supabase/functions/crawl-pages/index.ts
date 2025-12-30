@@ -4,14 +4,57 @@
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { DOMParser } from 'https://deno.land/x/deno_dom@v0.1.45/deno-dom-wasm.ts'
+import {
+  createClient,
+  SupabaseClient,
+} from 'https://esm.sh/@supabase/supabase-js@2'
+import {
+  DOMParser,
+  Document,
+  Element,
+} from 'https://deno.land/x/deno_dom@v0.1.45/deno-dom-wasm.ts'
 
 const USER_AGENT = 'GEOAnalyzer/1.0 (Educational Research Tool)'
 
 interface CrawlRequest {
   urls: string[]
   analysisId: string
+}
+
+interface MetaTags {
+  title?: string
+  description?: string
+  keywords?: string
+  author?: string
+  robots?: string
+  ogTitle?: string
+  ogDescription?: string
+  ogImage?: string
+  canonical?: string
+}
+
+interface ContentStructure {
+  headings: {
+    h1: string[]
+    h2: string[]
+    h3: string[]
+  }
+  wordCount: number
+  paragraphCount: number
+  imageCount: number
+  linkCount: number
+  hasTableOfContents: boolean
+  hasFAQ: boolean
+  faqCount?: number
+  hasProductInfo: boolean
+  hasReviews: boolean
+}
+
+interface CrawlResult {
+  url: string
+  status: string
+  metaTags?: MetaTags
+  contentStructure?: ContentStructure
 }
 
 serve(async (req) => {
@@ -74,9 +117,11 @@ serve(async (req) => {
     return new Response(JSON.stringify({ results: crawlResults }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error in crawl-pages:', error)
-    return new Response(JSON.stringify({ error: error.message }), {
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error occurred'
+    return new Response(JSON.stringify({ error: errorMessage }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
@@ -89,8 +134,8 @@ serve(async (req) => {
 async function crawlSinglePage(
   url: string,
   analysisId: string,
-  supabase: any
-) {
+  supabase: SupabaseClient
+): Promise<CrawlResult> {
   const domain = new URL(url).hostname
 
   // 1. robots.txt 체크
@@ -168,14 +213,17 @@ async function crawlSinglePage(
     })
 
     return { url, status: 'success', metaTags, contentStructure }
-  } catch (error: any) {
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error occurred'
+
     // 실패 시 DB에 기록
     await supabase.from('page_crawls').insert({
       analysis_id: analysisId,
       url,
       domain,
       crawl_status: 'failed',
-      error_message: error.message,
+      error_message: errorMessage,
       robots_txt_allowed: true,
     })
 
@@ -237,8 +285,8 @@ async function checkRobotsTxt(url: string): Promise<boolean> {
 /**
  * 메타태그 추출
  */
-function extractMetaTags(doc: any) {
-  const meta: any = {}
+function extractMetaTags(doc: Document): MetaTags {
+  const meta: Partial<MetaTags> = {}
 
   // Title
   const titleEl = doc.querySelector('title')
@@ -276,8 +324,8 @@ function extractMetaTags(doc: any) {
 /**
  * Schema.org 마크업 추출
  */
-function extractSchemaMarkup(doc: any) {
-  const schemas: any[] = []
+function extractSchemaMarkup(doc: Document): unknown[] {
+  const schemas: unknown[] = []
 
   const scripts = doc.querySelectorAll('script[type="application/ld+json"]')
   for (const script of scripts) {
@@ -298,21 +346,29 @@ function extractSchemaMarkup(doc: any) {
 /**
  * 콘텐츠 구조 분석
  */
-function analyzeContentStructure(doc: any) {
-  const structure: any = {
+function analyzeContentStructure(doc: Document): ContentStructure {
+  const structure: ContentStructure = {
     headings: { h1: [], h2: [], h3: [] },
+    wordCount: 0,
+    paragraphCount: 0,
+    imageCount: 0,
+    linkCount: 0,
+    hasTableOfContents: false,
+    hasFAQ: false,
+    hasProductInfo: false,
+    hasReviews: false,
   }
 
   // Headings 추출
-  doc.querySelectorAll('h1').forEach((h1: any) => {
+  doc.querySelectorAll('h1').forEach((h1: Element) => {
     const text = h1.textContent?.trim()
     if (text) structure.headings.h1.push(text)
   })
-  doc.querySelectorAll('h2').forEach((h2: any) => {
+  doc.querySelectorAll('h2').forEach((h2: Element) => {
     const text = h2.textContent?.trim()
     if (text) structure.headings.h2.push(text)
   })
-  doc.querySelectorAll('h3').forEach((h3: any) => {
+  doc.querySelectorAll('h3').forEach((h3: Element) => {
     const text = h3.textContent?.trim()
     if (text) structure.headings.h3.push(text)
   })
