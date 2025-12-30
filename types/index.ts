@@ -22,6 +22,7 @@ export type {
   BrandMention,
   BrandMentionAnalysis,
   BrandMentionSentiment,
+  MentionCountByLLM,
 } from '@/lib/supabase/types'
 
 // Re-export Sentiment types

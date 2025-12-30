@@ -112,6 +112,16 @@ export interface BrandMentionSentiment {
 }
 
 /**
+ * LLM별 브랜드 언급 횟수
+ */
+export interface MentionCountByLLM {
+  perplexity: number
+  chatgpt: number
+  gemini: number
+  claude: number
+}
+
+/**
  * 브랜드 언급 분석 (방법론 문서 Section 5.2)
  */
 export interface BrandMentionDetail {
@@ -119,6 +129,8 @@ export interface BrandMentionDetail {
   aliases: string[]
   mentionCount: number
   mentionedInLLMs: LLMType[]
+  /** LLM별 언급 횟수 */
+  mentionCountByLLM?: MentionCountByLLM
   contexts: string[] // 언급된 문맥 (앞뒤 텍스트)
   /** 감성 분석 결과 (선택적) */
   sentimentAnalysis?: BrandMentionSentiment[]

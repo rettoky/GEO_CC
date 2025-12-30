@@ -472,18 +472,22 @@ export function VisibilityDashboard({
                     const name = LLM_NAMES[key as keyof typeof LLM_NAMES]
                     const llmKey = key as LLMType
 
-                    // summary.brandMentionAnalysis에서 해당 LLM이 언급되었는지 확인
-                    // 이 데이터는 서버에서 모든 쿼리를 분석한 정확한 결과입니다
-                    const mentionedInLLMs = summary.brandMentionAnalysis?.myBrand?.mentionedInLLMs || []
-                    const isMentioned = mentionedInLLMs.includes(llmKey)
+                    // LLM별 정확한 언급 횟수 (mentionCountByLLM 필드 사용)
+                    const mentionCountByLLM = summary.brandMentionAnalysis?.myBrand?.mentionCountByLLM
+                    const exactCount = mentionCountByLLM?.[llmKey] ?? null
 
-                    // 총 언급 횟수 (전체, LLM별 상세 횟수는 현재 저장되지 않음)
+                    // 정확한 값이 없으면 기존 추정값 사용 (하위 호환성)
+                    const mentionedInLLMs = summary.brandMentionAnalysis?.myBrand?.mentionedInLLMs || []
+                    const isMentionedByList = mentionedInLLMs.includes(llmKey)
                     const totalMentionCount = summary.brandMentionAnalysis?.myBrand?.mentionCount || 0
-                    // 언급된 LLM 수로 대략적인 분배 (정확한 LLM별 횟수가 없을 때)
                     const mentionedLLMCount = mentionedInLLMs.length
-                    const estimatedCount = isMentioned && mentionedLLMCount > 0
+                    const estimatedCount = isMentionedByList && mentionedLLMCount > 0
                       ? Math.round(totalMentionCount / mentionedLLMCount)
                       : 0
+
+                    // 표시할 값 결정 (정확한 값 우선, 없으면 추정값)
+                    const displayCount = exactCount !== null ? exactCount : (isMentionedByList ? estimatedCount : 0)
+                    const isMentioned = displayCount > 0
 
                     return (
                       <div
@@ -503,7 +507,7 @@ export function VisibilityDashboard({
                         </div>
                         <div className="flex items-end gap-2">
                           <span className={`text-2xl font-bold ${isMentioned ? 'text-foreground' : 'text-muted-foreground'}`}>
-                            {isMentioned ? (mentionedLLMCount === 1 ? totalMentionCount : `~${estimatedCount}`) : 0}
+                            {displayCount}
                           </span>
                           <span className="text-xs text-muted-foreground mb-1">회 언급</span>
                         </div>

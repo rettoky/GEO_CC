@@ -13,6 +13,7 @@ import type {
   BrandMentionDetail,
   BrandMentionAnalysis,
   BrandMentionSentiment,
+  MentionCountByLLM,
 } from './llm/types.ts'
 import { callPerplexity } from './llm/perplexity.ts'
 import { callOpenAI } from './llm/openai.ts'
@@ -385,6 +386,7 @@ async function analyzeBrandMentions(
       aliases: detection.aliases,
       mentionCount: detection.mentionCount,
       mentionedInLLMs: detection.mentionedInLLMs,
+      mentionCountByLLM: detection.mentionCountByLLM,
       contexts: detection.contexts,
       sentimentAnalysis,
     }
@@ -440,11 +442,15 @@ async function analyzeBrandMentions(
         )
       }
 
+      // LLM별 언급 횟수 (텍스트 언급만 - 도메인 인용은 LLM별로 분리하기 어려움)
+      const mentionCountByLLM = textMention.mentionCountByLLM
+
       competitors.push({
         brand: brand.name,
         aliases: brand.aliases,
         mentionCount: totalMentionCount,
         mentionedInLLMs: allLLMs,
+        mentionCountByLLM,
         contexts: textMention.contexts,
         sentimentAnalysis,
       })
@@ -485,6 +491,7 @@ interface ContextWithSource {
  * 특정 브랜드의 언급 감지 (중복 집계 방지)
  * 별칭이 겹치는 경우 (예: "삼성화재"와 "삼성") 같은 위치는 1회만 집계
  * LLM 출처 정보와 함께 문맥 반환
+ * LLM별 언급 횟수도 함께 반환
  */
 function detectBrandMentions(
   results: AnalysisResults,
@@ -496,6 +503,14 @@ function detectBrandMentions(
   const mentionedInLLMs: LLMType[] = []
   const contexts: string[] = []
   const contextsWithSource: ContextWithSource[] = []
+
+  // LLM별 언급 횟수 추적
+  const mentionCountByLLM: MentionCountByLLM = {
+    perplexity: 0,
+    chatgpt: 0,
+    gemini: 0,
+    claude: 0,
+  }
 
   for (const llmKey of llmKeys) {
     const result = results[llmKey]
@@ -538,6 +553,9 @@ function detectBrandMentions(
 
     const llmMentionCount = uniqueMatches.length
 
+    // LLM별 언급 횟수 저장
+    mentionCountByLLM[llmKey as keyof MentionCountByLLM] = llmMentionCount
+
     // 문맥 추출 (최대 5개, 중복 제거된 매칭에서)
     for (const pos of uniqueMatches) {
       if (contextsWithSource.length >= 5) break
@@ -573,6 +591,7 @@ function detectBrandMentions(
     aliases,
     mentionCount: totalCount,
     mentionedInLLMs,
+    mentionCountByLLM,
     contexts,
     contextsWithSource,
   }
