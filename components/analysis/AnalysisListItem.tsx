@@ -96,6 +96,7 @@ export function AnalysisListItem({ analysis, onDelete, isDeleting }: AnalysisLis
                   </Badge>
                 )}
                 <h3 className="font-medium text-lg line-clamp-1">
+                  {analysis.is_mock && <span className="text-orange-500">[목업] </span>}
                   {analysis.base_query || analysis.query_text}
                 </h3>
                 <Badge className={statusColors[analysis.status]}>
@@ -183,7 +184,7 @@ export function AnalysisListItem({ analysis, onDelete, isDeleting }: AnalysisLis
                         이 분석 결과를 삭제하시겠습니까?
                         <br />
                         <span className="font-medium text-foreground mt-2 block">
-                          &quot;{analysis.query_text}&quot;
+                          &quot;{analysis.is_mock ? '[목업] ' : ''}{analysis.query_text}&quot;
                         </span>
                         <br />
                         삭제된 데이터는 복구할 수 없습니다.

@@ -134,6 +134,8 @@ export interface Database {
           final_review_created_at: string | null
           // Tracking Section
           section_id: string | null
+          // Mock data flag
+          is_mock: boolean
         }
         Insert: {
           id?: string
@@ -164,6 +166,8 @@ export interface Database {
           final_review_created_at?: string | null
           // Tracking Section
           section_id?: string | null
+          // Mock data flag
+          is_mock?: boolean
         }
         Update: {
           id?: string
@@ -194,6 +198,8 @@ export interface Database {
           final_review_created_at?: string | null
           // Tracking Section
           section_id?: string | null
+          // Mock data flag
+          is_mock?: boolean
         }
       }
       tracking_sections: {
