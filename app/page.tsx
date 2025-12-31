@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 import { analyzeBatchVariations, type BatchAnalysisProgress } from '@/lib/analysis/variation-orchestrator'
 import type { AnalysisResults, AnalysisSummary } from '@/types'
+import { ACTIVE_LLMS } from '@/lib/constants/labels'
 
 interface QueryResultHistory {
   id: string
@@ -110,7 +111,7 @@ export default function Home() {
 
       toast({
         title: '분석 완료',
-        description: '4개 LLM의 분석 결과를 확인하세요',
+        description: `${ACTIVE_LLMS.length}개 LLM의 분석 결과를 확인하세요`,
       })
     } catch (err) {
       toast({

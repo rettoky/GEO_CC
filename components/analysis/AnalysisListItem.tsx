@@ -16,6 +16,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import type { Analysis } from '@/lib/supabase/types'
+import { ACTIVE_LLMS } from '@/lib/constants/labels'
 
 interface AnalysisListItemProps {
   analysis: Analysis
@@ -142,7 +143,7 @@ export function AnalysisListItem({ analysis, onDelete, isDeleting }: AnalysisLis
                 <div className="flex items-center gap-4 text-sm flex-wrap">
                   <span>전체 인용: {analysis.summary.totalCitations}</span>
                   <span>
-                    성공: {analysis.summary.successfulLLMs.length} / 4 LLM
+                    성공: {analysis.summary.successfulLLMs.length} / {ACTIVE_LLMS.length} LLM
                   </span>
                   {analysis.summary.myDomainCited && (
                     <Badge variant="default" className="bg-green-600">
