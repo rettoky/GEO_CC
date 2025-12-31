@@ -499,6 +499,9 @@ export function AnalysisDetailClient({ analysis }: AnalysisDetailClientProps) {
         onBrandMentionClick={() => {
           allQueryResultsRef.current?.setFilterAndScroll('brandMention')
         }}
+        onLLMBrandMentionClick={(llm) => {
+          allQueryResultsRef.current?.setLLMBrandMentionFilterAndScroll(llm)
+        }}
       />
 
       {/* 브랜드 노출 비교 차트 */}

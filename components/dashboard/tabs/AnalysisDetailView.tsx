@@ -430,6 +430,9 @@ export function AnalysisDetailView({ analysis }: AnalysisDetailViewProps) {
           onBrandMentionClick={() => {
             allQueryResultsRef.current?.setFilterAndScroll('brandMention')
           }}
+          onLLMBrandMentionClick={(llm) => {
+            allQueryResultsRef.current?.setLLMBrandMentionFilterAndScroll(llm)
+          }}
         />
       </ErrorBoundary>
 

@@ -36,6 +36,7 @@ interface AllQueryResultsViewProps {
 export interface AllQueryResultsViewHandle {
   setFilterAndScroll: (filter: 'all' | 'myDomain' | 'brandMention') => void
   setCompetitorFilterAndScroll: (brandName: string, aliases: string[]) => void
+  setLLMBrandMentionFilterAndScroll: (llm: LLMType) => void
 }
 
 /**
@@ -98,15 +99,18 @@ export const AllQueryResultsView = forwardRef<AllQueryResultsViewHandle, AllQuer
   // 단일 쿼리인 경우 상세 뷰를 기본으로
   const [viewMode, setViewMode] = useState<'list' | 'summary'>(isSingleQuery ? 'list' : 'summary')
   // 필터 상태
-  const [filterMode, setFilterMode] = useState<'all' | 'myDomain' | 'brandMention' | 'competitor'>('all')
+  const [filterMode, setFilterMode] = useState<'all' | 'myDomain' | 'brandMention' | 'competitor' | 'llmBrandMention'>('all')
   // 경쟁사 브랜드 필터 상태
   const [competitorFilter, setCompetitorFilter] = useState<{ brandName: string; aliases: string[] } | null>(null)
+  // LLM별 브랜드 언급 필터 상태
+  const [llmFilter, setLlmFilter] = useState<LLMType | null>(null)
 
   // 외부에서 호출 가능한 메서드 노출
   useImperativeHandle(ref, () => ({
     setFilterAndScroll: (filter: 'all' | 'myDomain' | 'brandMention') => {
       setFilterMode(filter)
       setCompetitorFilter(null) // 경쟁사 필터 초기화
+      setLlmFilter(null) // LLM 필터 초기화
       setViewMode('list') // 상세 뷰로 전환
       // 필터된 쿼리가 있는 경우 첫 번째 쿼리 펼침
       setTimeout(() => {
@@ -116,6 +120,17 @@ export const AllQueryResultsView = forwardRef<AllQueryResultsViewHandle, AllQuer
     setCompetitorFilterAndScroll: (brandName: string, aliases: string[]) => {
       setFilterMode('competitor')
       setCompetitorFilter({ brandName, aliases })
+      setLlmFilter(null) // LLM 필터 초기화
+      setViewMode('list') // 상세 뷰로 전환
+      setExpandedQueries(new Set([0])) // 첫 번째 쿼리 펼침
+      setTimeout(() => {
+        containerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 100)
+    },
+    setLLMBrandMentionFilterAndScroll: (llm: LLMType) => {
+      setFilterMode('llmBrandMention')
+      setLlmFilter(llm)
+      setCompetitorFilter(null) // 경쟁사 필터 초기화
       setViewMode('list') // 상세 뷰로 전환
       setExpandedQueries(new Set([0])) // 첫 번째 쿼리 펼침
       setTimeout(() => {
@@ -211,6 +226,21 @@ export const AllQueryResultsView = forwardRef<AllQueryResultsViewHandle, AllQuer
     return false
   }
 
+  // 특정 LLM에서 브랜드가 언급되었는지 확인
+  const hasLLMBrandMention = (result: QueryAnalysisResult, llm: LLMType): boolean => {
+    const llmResult = result.results[llm]
+    if (!llmResult?.success || !llmResult.answer || !myBrand) return false
+
+    // summary에서 LLM별 브랜드 언급 정보 확인
+    const mentionedInLLMs = result.summary?.brandMentionAnalysis?.myBrand?.mentionedInLLMs || []
+    if (mentionedInLLMs.includes(llm)) return true
+
+    // 직접 텍스트 검색 (fallback)
+    const lowerAnswer = llmResult.answer.toLowerCase()
+    const aliases = result.summary?.brandMentionAnalysis?.myBrand?.aliases || [myBrand]
+    return aliases.some(alias => lowerAnswer.includes(alias.toLowerCase()))
+  }
+
   // 필터링된 쿼리 결과
   const filteredQueryResults = useMemo(() => {
     if (filterMode === 'all') {
@@ -224,13 +254,18 @@ export const AllQueryResultsView = forwardRef<AllQueryResultsViewHandle, AllQuer
       return allQueryResults
         .map((result, index) => ({ result, originalIndex: index }))
         .filter(({ result }) => hasCompetitorMention(result, competitorFilter.aliases))
+    } else if (filterMode === 'llmBrandMention' && llmFilter) {
+      // 특정 LLM에서 브랜드가 언급된 쿼리만 필터링
+      return allQueryResults
+        .map((result, index) => ({ result, originalIndex: index }))
+        .filter(({ result }) => hasLLMBrandMention(result, llmFilter))
     } else {
       // brandMention
       return allQueryResults
         .map((result, index) => ({ result, originalIndex: index }))
         .filter(({ result }) => result.summary?.brandMentioned)
     }
-  }, [allQueryResults, filterMode, competitorFilter])
+  }, [allQueryResults, filterMode, competitorFilter, llmFilter, myBrand])
 
   const toggleQuery = (index: number) => {
     const newExpanded = new Set(expandedQueries)
@@ -253,6 +288,7 @@ export const AllQueryResultsView = forwardRef<AllQueryResultsViewHandle, AllQuer
   const handleFilterClick = (filter: 'all' | 'myDomain' | 'brandMention') => {
     setFilterMode(filter)
     setCompetitorFilter(null) // 경쟁사 필터 초기화
+    setLlmFilter(null) // LLM 필터 초기화
     setViewMode('list') // 필터링 시 리스트 뷰로 전환
     // 필터링 후 첫 번째 항목 펼치기
     if (filter !== 'all') {
@@ -260,9 +296,10 @@ export const AllQueryResultsView = forwardRef<AllQueryResultsViewHandle, AllQuer
     }
   }
 
-  const clearCompetitorFilter = () => {
+  const clearAllFilters = () => {
     setFilterMode('all')
     setCompetitorFilter(null)
+    setLlmFilter(null)
   }
 
   if (allQueryResults.length === 0) {
@@ -431,18 +468,29 @@ export const AllQueryResultsView = forwardRef<AllQueryResultsViewHandle, AllQuer
                 </div>
                 {filterMode !== 'all' && (
                   <div className="flex items-center gap-2">
-                    <Badge variant="secondary" className={filterMode === 'competitor' ? 'bg-orange-100 text-orange-700' : ''}>
+                    <Badge
+                      variant="secondary"
+                      className={
+                        filterMode === 'competitor'
+                          ? 'bg-orange-100 text-orange-700'
+                          : filterMode === 'llmBrandMention'
+                          ? 'bg-purple-100 text-purple-700'
+                          : ''
+                      }
+                    >
                       {filterMode === 'myDomain'
                         ? '내 도메인 인용 필터'
                         : filterMode === 'competitor' && competitorFilter
                         ? `${competitorFilter.brandName} 필터`
+                        : filterMode === 'llmBrandMention' && llmFilter
+                        ? `${LLM_NAMES[llmFilter]} 브랜드 언급 필터`
                         : '브랜드 언급 필터'}
                       ({filteredQueryResults.length}개)
                     </Badge>
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={filterMode === 'competitor' ? clearCompetitorFilter : () => handleFilterClick('all')}
+                      onClick={clearAllFilters}
                     >
                       필터 해제
                     </Button>
@@ -459,6 +507,8 @@ export const AllQueryResultsView = forwardRef<AllQueryResultsViewHandle, AllQuer
                     ? '내 도메인이 인용된 쿼리가 없습니다.'
                     : filterMode === 'competitor' && competitorFilter
                     ? `"${competitorFilter.brandName}" 브랜드가 언급된 쿼리가 없습니다.`
+                    : filterMode === 'llmBrandMention' && llmFilter
+                    ? `${LLM_NAMES[llmFilter]}에서 브랜드가 언급된 쿼리가 없습니다.`
                     : '브랜드가 언급된 쿼리가 없습니다.'}
                 </div>
               ) : (
@@ -519,10 +569,20 @@ export const AllQueryResultsView = forwardRef<AllQueryResultsViewHandle, AllQuer
                             {llmTypes.map((llm) => {
                               const llmResult = result.results[llm]
                               const citations = llmResult?.citations || []
+                              // LLM 필터 모드에서 현재 LLM이 필터된 LLM인지 확인
+                              const isFilteredLLM = filterMode === 'llmBrandMention' && llmFilter === llm
+                              // LLM 필터 모드에서 필터되지 않은 LLM은 흐리게 표시
+                              const isNotFilteredLLM = filterMode === 'llmBrandMention' && llmFilter && llmFilter !== llm
                               return (
                                 <div
                                   key={llm}
-                                  className="border rounded-lg p-3 space-y-2"
+                                  className={`border rounded-lg p-3 space-y-2 transition-all duration-200 ${
+                                    isFilteredLLM
+                                      ? 'ring-2 ring-purple-500 border-purple-300 bg-purple-50/30 dark:bg-purple-900/10'
+                                      : isNotFilteredLLM
+                                      ? 'opacity-40'
+                                      : ''
+                                  }`}
                                 >
                                   <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
@@ -549,6 +609,14 @@ export const AllQueryResultsView = forwardRef<AllQueryResultsViewHandle, AllQuer
                                               llmResult.answer || '응답 없음',
                                               competitorFilter.aliases,
                                               'font-bold text-orange-600 bg-orange-100 px-0.5 rounded'
+                                            )
+                                          : filterMode === 'llmBrandMention' && llmFilter && myBrand
+                                          ? highlightText(
+                                              llmResult.answer || '응답 없음',
+                                              result.summary?.brandMentionAnalysis?.myBrand?.aliases || [myBrand],
+                                              isFilteredLLM
+                                                ? 'font-bold text-purple-700 bg-purple-100 px-0.5 rounded'
+                                                : 'font-bold text-purple-600'
                                             )
                                           : filterMode === 'brandMention' && myBrand
                                           ? highlightText(

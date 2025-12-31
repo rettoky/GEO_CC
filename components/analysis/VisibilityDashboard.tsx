@@ -31,6 +31,7 @@ interface VisibilityDashboardProps {
   brandAliases?: string[]
   onDomainCitationClick?: () => void
   onBrandMentionClick?: () => void
+  onLLMBrandMentionClick?: (llm: LLMType) => void
 }
 
 const LLM_NAMES = {
@@ -51,6 +52,7 @@ export function VisibilityDashboard({
   brandAliases = [],
   onDomainCitationClick,
   onBrandMentionClick,
+  onLLMBrandMentionClick,
 }: VisibilityDashboardProps) {
   // 결과가 없으면 렌더링하지 않음
   if (!results || Object.keys(results).length === 0) {
@@ -490,11 +492,13 @@ export function VisibilityDashboard({
                     const isMentioned = displayCount > 0
 
                     return (
-                      <div
+                      <button
                         key={key}
-                        className={`relative p-4 rounded-xl border transition-all duration-200 ${isMentioned
-                          ? 'bg-green-50/50 border-green-200 dark:bg-green-900/10 dark:border-green-800'
-                          : 'bg-muted/30 border-border opacity-70'
+                        onClick={() => isMentioned && onLLMBrandMentionClick?.(llmKey)}
+                        disabled={!isMentioned}
+                        className={`relative p-4 rounded-xl border transition-all duration-200 text-left w-full ${isMentioned
+                          ? 'bg-green-50/50 border-green-200 dark:bg-green-900/10 dark:border-green-800 cursor-pointer hover:shadow-md hover:border-green-300 dark:hover:border-green-700'
+                          : 'bg-muted/30 border-border opacity-70 cursor-default'
                           }`}
                       >
                         <div className="flex items-center justify-between mb-3">
@@ -512,9 +516,9 @@ export function VisibilityDashboard({
                           <span className="text-xs text-muted-foreground mb-1">회 언급</span>
                         </div>
                         <div className={`text-xs mt-2 font-medium ${isMentioned ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`}>
-                          {isMentioned ? '언급됨' : '미언급'}
+                          {isMentioned ? '클릭하여 상세 보기' : '미언급'}
                         </div>
-                      </div>
+                      </button>
                     )
                   })}
                 </div>
