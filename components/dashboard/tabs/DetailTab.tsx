@@ -50,13 +50,15 @@ export function DetailTab() {
       console.error('분석 상세 로드 오류:', error)
       toast({
         title: '로드 실패',
-        description: '분석 상세를 불러오는데 실패했습니다.',
+        description: '분석이 존재하지 않거나 삭제되었습니다.',
         variant: 'destructive',
       })
+      // 존재하지 않는 분석 ID 선택 해제 (URL 파라미터도 정리됨)
+      selectAnalysis(null)
     } finally {
       setLoadingDetail(false)
     }
-  }, [toast])
+  }, [toast, selectAnalysis])
 
   // 선택된 분석 ID가 변경되면 상세 데이터 로드
   useEffect(() => {
