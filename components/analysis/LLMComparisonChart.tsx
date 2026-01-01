@@ -299,7 +299,7 @@ export function LLMComparisonChart({
           {/* 브랜드 노출 비교 (수평 막대 차트) */}
           <TabsContent value="comparison" className="mt-0">
             <div className="h-[300px] w-full chart-container">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <BarChart
                   data={brandComparisonData}
                   layout="vertical"
@@ -350,7 +350,7 @@ export function LLMComparisonChart({
           {/* 점유율 파이 차트 */}
           <TabsContent value="share" className="mt-0">
             <div className="h-[300px] w-full chart-container">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <PieChart>
                   <Pie
                     data={marketShareData}
@@ -397,7 +397,7 @@ export function LLMComparisonChart({
           {/* LLM별 브랜드 노출 분포 */}
           <TabsContent value="llm" className="mt-0">
             <div className="h-[300px] w-full chart-container">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <BarChart data={llmExposureData} barCategoryGap="25%">
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                   <XAxis

@@ -50,7 +50,7 @@ export function TrackingLLMChart({
         </span>
       </div>
       <div className="h-[180px] chart-container">
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
           <AreaChart
             data={data}
             margin={{ top: 5, right: 5, left: 0, bottom: 0 }}

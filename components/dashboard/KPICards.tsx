@@ -102,7 +102,7 @@ const KPICard = memo(function KPICard({
           </div>
           {sparklineData && sparklineData.length > 1 && (
             <div className="h-10 w-20">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <LineChart data={sparklineData}>
                   <Line
                     type="monotone"

@@ -92,7 +92,7 @@ export function SentimentScoreChart({ data }: SentimentTrackingProps) {
       </CardHeader>
       <CardContent>
         <div className="h-[250px] chart-container">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
             <LineChart data={chartData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis
@@ -180,7 +180,7 @@ export function SentimentDistributionChart({ data }: SentimentTrackingProps) {
       </CardHeader>
       <CardContent>
         <div className="h-[250px] chart-container">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
             {useAreaChart ? (
               <LineChart data={chartData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -298,7 +298,7 @@ export function SentimentSummaryChart({ data }: SentimentTrackingProps) {
         <div className="flex items-center gap-6">
           {/* 도넛 차트 */}
           <div className="h-[200px] w-[200px] relative">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <PieChart>
                 <Pie
                   data={pieData}

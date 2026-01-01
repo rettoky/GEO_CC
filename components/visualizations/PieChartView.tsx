@@ -94,7 +94,7 @@ export function PieChartView({
         {chartData.segments.length > 0 ? (
           <>
             <div className="h-[400px]">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <PieChart>
                   <Pie
                     data={rechartsData}

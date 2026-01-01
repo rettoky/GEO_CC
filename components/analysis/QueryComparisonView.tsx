@@ -245,7 +245,7 @@ export function QueryComparisonView({
 
             <TabsContent value="llm">
               <div className="h-[350px]">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                   <BarChart data={comparisonChartData}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                     <XAxis dataKey="name" tick={{ fontSize: 11 }} />
@@ -268,7 +268,7 @@ export function QueryComparisonView({
 
             <TabsContent value="metrics">
               <div className="h-[350px]">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                   <BarChart data={comparisonChartData}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                     <XAxis dataKey="name" tick={{ fontSize: 11 }} />
@@ -300,7 +300,7 @@ export function QueryComparisonView({
 
             <TabsContent value="trend">
               <div className="h-[350px]">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                   <LineChart data={comparisonChartData}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                     <XAxis dataKey="index" tick={{ fontSize: 11 }} label={{ value: '쿼리 순서', position: 'bottom' }} />

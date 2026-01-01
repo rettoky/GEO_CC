@@ -67,7 +67,7 @@ export function ResultsVisualization({ summary }: ResultsVisualizationProps) {
 
           <TabsContent value="citations" className="mt-6">
             <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <BarChart data={citationData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="name" />
@@ -108,7 +108,7 @@ export function ResultsVisualization({ summary }: ResultsVisualizationProps) {
 
           <TabsContent value="status" className="mt-6">
             <div className="h-80 flex items-center justify-center">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <PieChart>
                   <Pie
                     data={statusData}
