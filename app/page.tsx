@@ -221,6 +221,7 @@ export default function Home() {
               }}
               compact
               hasVariations
+              variationsCount={variations.length}
             />
           </div>
           {/* 우측: 생성된 변형 목록 */}

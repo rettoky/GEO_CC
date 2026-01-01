@@ -253,6 +253,7 @@ export function NewAnalysisTab() {
               onVariationsGenerated={handleVariationsRegenerated}
               compact
               hasVariations
+              variationsCount={variations.length}
             />
           </div>
           <div className="lg:col-span-2">

@@ -17,6 +17,15 @@ interface QueryVariationGeneratorProps {
   onVariationsGenerated: (variations: GeneratedVariation[]) => void
   compact?: boolean
   hasVariations?: boolean
+  variationsCount?: number
+}
+
+// 변형 개수에 따른 초기 count 상태 결정
+function getInitialCount(variationsCount?: number): 'small' | 'medium' | 'large' {
+  if (!variationsCount) return 'medium'
+  if (variationsCount >= 25) return 'large'
+  if (variationsCount >= 12) return 'medium'
+  return 'small'
 }
 
 export function QueryVariationGenerator({
@@ -24,8 +33,9 @@ export function QueryVariationGenerator({
   onVariationsGenerated,
   compact = false,
   hasVariations = false,
+  variationsCount,
 }: QueryVariationGeneratorProps) {
-  const [count, setCount] = useState<'small' | 'medium' | 'large'>('medium')
+  const [count, setCount] = useState<'small' | 'medium' | 'large'>(() => getInitialCount(variationsCount))
   const [productCategory, setProductCategory] = useState('')
   const [productName, setProductName] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
