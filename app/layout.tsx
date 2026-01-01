@@ -35,6 +35,7 @@ export default function RootLayout({
     <html lang="ko">
       <body
         className={`${inter.variable} ${notoSansKr.variable} font-sans antialiased bg-background text-foreground`}
+        suppressHydrationWarning
       >
         <AnalysisFormProvider>
           <DashboardProvider>
