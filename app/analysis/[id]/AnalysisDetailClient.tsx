@@ -281,18 +281,39 @@ export function AnalysisDetailClient({ analysis }: AnalysisDetailClientProps) {
     const totalBrandMentions = (myBrandMention?.mentionCount || 0) +
       competitors.reduce((sum, c) => sum + c.mentionCount, 0)
 
+    // 재계산 결과가 0이지만 DB에 저장된 summary에 브랜드 언급 데이터가 있는 경우 DB 데이터 사용
+    // (마이그레이션된 데이터 또는 올바르게 저장된 데이터 활용)
+    const storedBrandMentionAnalysis = analysis.summary?.brandMentionAnalysis
+    const useStoredData = totalBrandMentions === 0 &&
+      storedBrandMentionAnalysis?.totalBrandMentions &&
+      storedBrandMentionAnalysis.totalBrandMentions > 0
+
+    const finalBrandMentionAnalysis = useStoredData ? storedBrandMentionAnalysis : {
+      myBrand: myBrandMention,
+      competitors,
+      totalBrandMentions,
+    }
+
     // 성공/실패 LLM 집계
     const llmTypes: LLMType[] = ['perplexity', 'chatgpt', 'gemini', 'claude']
     const successfulLLMs = llmTypes.filter(llm => aggregatedResults[llm]?.success)
     const failedLLMs = llmTypes.filter(llm => !aggregatedResults[llm]?.success)
+
+    // brandMentioned와 brandMentionCount도 DB 데이터 우선 사용
+    const finalBrandMentioned = useStoredData
+      ? (storedBrandMentionAnalysis?.myBrand?.mentionCount || 0) > 0
+      : (myBrandMention?.mentionCount || 0) > 0
+    const finalBrandMentionCount = useStoredData
+      ? (storedBrandMentionAnalysis?.myBrand?.mentionCount || 0)
+      : (myBrandMention?.mentionCount || 0)
 
     return {
       totalCitations,
       uniqueDomains: uniqueDomains.size,
       myDomainCited: totalMyDomainCitations > 0,
       myDomainCitationCount: totalMyDomainCitations,
-      brandMentioned: (myBrandMention?.mentionCount || 0) > 0,
-      brandMentionCount: myBrandMention?.mentionCount || 0,
+      brandMentioned: finalBrandMentioned,
+      brandMentionCount: finalBrandMentionCount,
       avgResponseTime: 0,
       successfulLLMs,
       failedLLMs,
@@ -302,11 +323,7 @@ export function AnalysisDetailClient({ analysis }: AnalysisDetailClientProps) {
         gemini: aggregatedResults.gemini?.citations.length ?? null,
         claude: aggregatedResults.claude?.citations.length ?? null,
       },
-      brandMentionAnalysis: {
-        myBrand: myBrandMention,
-        competitors,
-        totalBrandMentions,
-      },
+      brandMentionAnalysis: finalBrandMentionAnalysis,
     }
   })()
 
