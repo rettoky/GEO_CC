@@ -397,6 +397,7 @@ export function NewAnalysisTab() {
             }]}
             myDomain={queryData?.domain}
             myBrand={queryData?.brand}
+            brandAliases={queryData?.brandAliases}
           />
 
           {data.data.summary.failedLLMs.length > 0 && (

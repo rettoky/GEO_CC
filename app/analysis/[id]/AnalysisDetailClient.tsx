@@ -578,6 +578,7 @@ export function AnalysisDetailClient({ analysis }: AnalysisDetailClientProps) {
           allQueryResults={displayQueryResults}
           myDomain={analysis.my_domain || undefined}
           myBrand={analysis.my_brand || undefined}
+          brandAliases={analysis.brand_aliases || undefined}
         />
       )}
 

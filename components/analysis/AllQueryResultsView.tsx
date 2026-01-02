@@ -31,6 +31,7 @@ interface AllQueryResultsViewProps {
   allQueryResults: QueryAnalysisResult[]
   myDomain?: string
   myBrand?: string
+  brandAliases?: string[]  // 분석 설정의 브랜드 별칭 목록
 }
 
 export interface AllQueryResultsViewHandle {
@@ -108,7 +109,14 @@ export const AllQueryResultsView = forwardRef<AllQueryResultsViewHandle, AllQuer
     allQueryResults,
     myDomain,
     myBrand,
+    brandAliases,
   }, ref) {
+  // 분석 설정의 별칭 사용 (없으면 myBrand로 폴백)
+  const effectiveAliases = useMemo(() => {
+    if (brandAliases && brandAliases.length > 0) return brandAliases
+    if (myBrand) return [myBrand]
+    return []
+  }, [brandAliases, myBrand])
   // 컴포넌트 ref
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -250,16 +258,16 @@ export const AllQueryResultsView = forwardRef<AllQueryResultsViewHandle, AllQuer
   // 특정 LLM에서 브랜드가 언급되었는지 확인
   const hasLLMBrandMention = (result: QueryAnalysisResult, llm: LLMType): boolean => {
     const llmResult = result.results[llm]
-    if (!llmResult?.success || !llmResult.answer || !myBrand) return false
+    if (!llmResult?.success || !llmResult.answer) return false
+    if (effectiveAliases.length === 0) return false
 
     // summary에서 LLM별 브랜드 언급 정보 확인
     const mentionedInLLMs = result.summary?.brandMentionAnalysis?.myBrand?.mentionedInLLMs || []
     if (mentionedInLLMs.includes(llm)) return true
 
-    // 직접 텍스트 검색 (fallback)
+    // 직접 텍스트 검색 (fallback) - 분석 설정의 별칭 사용
     const lowerAnswer = llmResult.answer.toLowerCase()
-    const aliases = result.summary?.brandMentionAnalysis?.myBrand?.aliases || [myBrand]
-    return aliases.some(alias => lowerAnswer.includes(alias.toLowerCase()))
+    return effectiveAliases.some(alias => lowerAnswer.includes(alias.toLowerCase()))
   }
 
   // 필터링된 쿼리 결과
@@ -286,7 +294,7 @@ export const AllQueryResultsView = forwardRef<AllQueryResultsViewHandle, AllQuer
         .map((result, index) => ({ result, originalIndex: index }))
         .filter(({ result }) => result.summary?.brandMentioned)
     }
-  }, [allQueryResults, filterMode, competitorFilter, llmFilter, myBrand])
+  }, [allQueryResults, filterMode, competitorFilter, llmFilter, effectiveAliases])
 
   const toggleQuery = (index: number) => {
     const newExpanded = new Set(expandedQueries)
@@ -626,10 +634,10 @@ export const AllQueryResultsView = forwardRef<AllQueryResultsViewHandle, AllQuer
                                       {/* 브랜드 별칭 언급 breakdown 표시 (브랜드 필터 모드에서만) */}
                                       {((filterMode === 'llmBrandMention' && isFilteredLLM) ||
                                         filterMode === 'brandMention') &&
-                                        myBrand &&
+                                        effectiveAliases.length > 0 &&
                                         llmResult.answer && (() => {
-                                          const aliases = result.summary?.brandMentionAnalysis?.myBrand?.aliases || [myBrand]
-                                          const aliasBreakdown = countAliasOccurrences(llmResult.answer, aliases)
+                                          // 분석 설정의 별칭 사용 (더 정확함)
+                                          const aliasBreakdown = countAliasOccurrences(llmResult.answer, effectiveAliases)
                                           if (aliasBreakdown.length === 0) return null
                                           const totalMentions = aliasBreakdown.reduce((sum, item) => sum + item.count, 0)
                                           return (
@@ -670,18 +678,18 @@ export const AllQueryResultsView = forwardRef<AllQueryResultsViewHandle, AllQuer
                                               competitorFilter.aliases,
                                               'font-bold text-orange-600 bg-orange-100 px-0.5 rounded'
                                             )
-                                          : filterMode === 'llmBrandMention' && llmFilter && myBrand
+                                          : filterMode === 'llmBrandMention' && llmFilter && effectiveAliases.length > 0
                                           ? highlightText(
                                               llmResult.answer || '응답 없음',
-                                              result.summary?.brandMentionAnalysis?.myBrand?.aliases || [myBrand],
+                                              effectiveAliases,
                                               isFilteredLLM
                                                 ? 'font-bold text-purple-700 bg-purple-100 px-0.5 rounded'
                                                 : 'font-bold text-purple-600'
                                             )
-                                          : filterMode === 'brandMention' && myBrand
+                                          : filterMode === 'brandMention' && effectiveAliases.length > 0
                                           ? highlightText(
                                               llmResult.answer || '응답 없음',
-                                              result.summary?.brandMentionAnalysis?.myBrand?.aliases || [myBrand],
+                                              effectiveAliases,
                                               'font-bold text-red-600'
                                             )
                                           : filterMode === 'myDomain' && myDomain

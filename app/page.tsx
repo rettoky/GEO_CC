@@ -374,6 +374,7 @@ export default function Home() {
             }]}
             myDomain={queryData?.domain}
             myBrand={queryData?.brand}
+            brandAliases={queryData?.brandAliases}
           />
 
           {/* 부분 실패 경고 */}

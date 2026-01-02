@@ -534,6 +534,7 @@ export function AnalysisDetailView({ analysis }: AnalysisDetailViewProps) {
           allQueryResults={displayQueryResults}
           myDomain={analysis.my_domain || undefined}
           myBrand={analysis.my_brand || undefined}
+          brandAliases={analysis.brand_aliases || undefined}
         />
       )}
 
