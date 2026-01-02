@@ -64,6 +64,27 @@ function highlightText(text: string, keywords: string[], highlightClass: string)
   })
 }
 
+/**
+ * 텍스트에서 각 별칭의 언급 횟수를 계산
+ */
+function countAliasOccurrences(text: string, aliases: string[]): { alias: string; count: number }[] {
+  if (!text || !aliases.length) return []
+
+  const results: { alias: string; count: number }[] = []
+
+  for (const alias of aliases) {
+    const escapedAlias = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const regex = new RegExp(escapedAlias, 'gi')
+    const matches = text.match(regex)
+    if (matches && matches.length > 0) {
+      results.push({ alias, count: matches.length })
+    }
+  }
+
+  // 언급 횟수 기준 내림차순 정렬
+  return results.sort((a, b) => b.count - a.count)
+}
+
 const LLM_NAMES: Record<LLMType, string> = {
   perplexity: 'Perplexity',
   chatgpt: 'ChatGPT',
@@ -602,6 +623,45 @@ export const AllQueryResultsView = forwardRef<AllQueryResultsViewHandle, AllQuer
 
                                   {llmResult?.success ? (
                                     <>
+                                      {/* 브랜드 별칭 언급 breakdown 표시 (브랜드 필터 모드에서만) */}
+                                      {((filterMode === 'llmBrandMention' && isFilteredLLM) ||
+                                        filterMode === 'brandMention') &&
+                                        myBrand &&
+                                        llmResult.answer && (() => {
+                                          const aliases = result.summary?.brandMentionAnalysis?.myBrand?.aliases || [myBrand]
+                                          const aliasBreakdown = countAliasOccurrences(llmResult.answer, aliases)
+                                          if (aliasBreakdown.length === 0) return null
+                                          const totalMentions = aliasBreakdown.reduce((sum, item) => sum + item.count, 0)
+                                          return (
+                                            <div className={`text-xs rounded p-2 mb-2 ${
+                                              filterMode === 'llmBrandMention'
+                                                ? 'bg-purple-100 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-800'
+                                                : 'bg-orange-100 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-800'
+                                            }`}>
+                                              <div className="flex items-center gap-1 flex-wrap">
+                                                <span className={`font-semibold ${
+                                                  filterMode === 'llmBrandMention' ? 'text-purple-700 dark:text-purple-300' : 'text-orange-700 dark:text-orange-300'
+                                                }`}>
+                                                  별칭 언급 ({totalMentions}회):
+                                                </span>
+                                                {aliasBreakdown.map((item, idx) => (
+                                                  <Badge
+                                                    key={item.alias}
+                                                    variant="secondary"
+                                                    className={`text-[10px] px-1.5 py-0 ${
+                                                      filterMode === 'llmBrandMention'
+                                                        ? 'bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200'
+                                                        : 'bg-orange-200 dark:bg-orange-800 text-orange-800 dark:text-orange-200'
+                                                    }`}
+                                                  >
+                                                    {item.alias} ×{item.count}
+                                                  </Badge>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          )
+                                        })()}
+
                                       {/* 응답 (전문 표시, 높이 증가) - 필터 모드에 따라 하이라이트 */}
                                       <div className="text-xs text-muted-foreground bg-slate-50 dark:bg-slate-900/50 rounded p-2 overflow-y-auto whitespace-pre-wrap max-h-96">
                                         {filterMode === 'competitor' && competitorFilter
