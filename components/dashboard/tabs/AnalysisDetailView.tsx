@@ -235,13 +235,13 @@ export function AnalysisDetailView({ analysis }: AnalysisDetailViewProps) {
       .sort((a, b) => b.mentionCount - a.mentionCount)
 
     // DB에 저장된 브랜드 분석 데이터 확인
+    // analysis.summary는 백엔드에서 정확하게 계산된 결과이므로 신뢰할 수 있음
     const storedBrandMentionAnalysis = analysis.summary?.brandMentionAnalysis
     const storedMyBrand = storedBrandMentionAnalysis?.myBrand
 
-    // 내 브랜드: 재계산 결과가 0이지만 DB에 데이터가 있으면 DB 데이터 사용
-    // (마이그레이션된 데이터 또는 올바르게 저장된 데이터 활용)
-    const useStoredMyBrand = (myBrandMention?.mentionCount || 0) === 0 &&
-      storedMyBrand?.mentionCount && storedMyBrand.mentionCount > 0
+    // 내 브랜드: DB에 저장된 데이터가 있으면 항상 DB 데이터 사용 (더 정확함)
+    // 개별 allQueryResults의 summary는 불완전할 수 있으므로 최상위 summary 우선
+    const useStoredMyBrand = storedMyBrand?.mentionCount && storedMyBrand.mentionCount > 0
 
     const finalMyBrand = useStoredMyBrand ? storedMyBrand : myBrandMention
 
