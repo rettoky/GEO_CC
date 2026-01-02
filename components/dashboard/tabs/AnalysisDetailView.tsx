@@ -234,29 +234,30 @@ export function AnalysisDetailView({ analysis }: AnalysisDetailViewProps) {
     const competitors = Array.from(brandMap.values())
       .sort((a, b) => b.mentionCount - a.mentionCount)
 
-    const totalBrandMentions = (myBrandMention?.mentionCount || 0) +
+    // DB에 저장된 브랜드 분석 데이터 확인
+    const storedBrandMentionAnalysis = analysis.summary?.brandMentionAnalysis
+    const storedMyBrand = storedBrandMentionAnalysis?.myBrand
+
+    // 내 브랜드: 재계산 결과가 0이지만 DB에 데이터가 있으면 DB 데이터 사용
+    // (마이그레이션된 데이터 또는 올바르게 저장된 데이터 활용)
+    const useStoredMyBrand = (myBrandMention?.mentionCount || 0) === 0 &&
+      storedMyBrand?.mentionCount && storedMyBrand.mentionCount > 0
+
+    const finalMyBrand = useStoredMyBrand ? storedMyBrand : myBrandMention
+
+    // 총 브랜드 언급 수 (최종 myBrand 데이터 기준)
+    const totalBrandMentions = (finalMyBrand?.mentionCount || 0) +
       competitors.reduce((sum, c) => sum + c.mentionCount, 0)
 
-    // 재계산 결과가 0이지만 DB에 저장된 summary에 브랜드 언급 데이터가 있는 경우 DB 데이터 사용
-    // (마이그레이션된 데이터 또는 올바르게 저장된 데이터 활용)
-    const storedBrandMentionAnalysis = analysis.summary?.brandMentionAnalysis
-    const useStoredData = totalBrandMentions === 0 &&
-      storedBrandMentionAnalysis?.totalBrandMentions &&
-      storedBrandMentionAnalysis.totalBrandMentions > 0
-
-    const finalBrandMentionAnalysis = useStoredData ? storedBrandMentionAnalysis : {
-      myBrand: myBrandMention,
+    const finalBrandMentionAnalysis = {
+      myBrand: finalMyBrand,
       competitors,
       totalBrandMentions,
     }
 
-    // brandMentioned와 brandMentionCount도 DB 데이터 우선 사용
-    const finalBrandMentioned = useStoredData
-      ? (storedBrandMentionAnalysis?.myBrand?.mentionCount || 0) > 0
-      : (myBrandMention?.mentionCount || 0) > 0
-    const finalBrandMentionCount = useStoredData
-      ? (storedBrandMentionAnalysis?.myBrand?.mentionCount || 0)
-      : (myBrandMention?.mentionCount || 0)
+    // brandMentioned와 brandMentionCount도 최종 myBrand 데이터 기준
+    const finalBrandMentioned = (finalMyBrand?.mentionCount || 0) > 0
+    const finalBrandMentionCount = finalMyBrand?.mentionCount || 0
 
     const llmTypes: LLMType[] = ['perplexity', 'chatgpt', 'gemini', 'claude']
     const successfulLLMs = llmTypes.filter(llm => aggregatedResults[llm]?.success)
