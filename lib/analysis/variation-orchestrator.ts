@@ -15,7 +15,7 @@
 import { createClient } from '@/lib/supabase/client'
 import { createQueryVariationsBulk } from '@/lib/supabase/queries/variations'
 import type { GeneratedVariation } from '@/types/queryVariations'
-import type { AnalysisResults, AnalysisSummary, LLMType } from '@/lib/supabase/types'
+import type { AnalysisResults, AnalysisSummary, LLMType, BrandMentionAnalysis, BrandMention } from '@/lib/supabase/types'
 
 export interface BatchAnalysisProgress {
   stage: 'init' | 'variations' | 'base_analysis' | 'llm_analysis' | 'aggregation' | 'completed'
@@ -195,6 +195,7 @@ interface FailedAnalysisUpdatePayload {
 interface FinalAnalysisUpdatePayload {
   status: 'completed'
   completed_at: string
+  summary: AnalysisSummary  // 통합된 브랜드 언급 분석 포함
   intermediate_results: {
     allQueryResults: QueryAnalysisResult[]
     baseQueryResult?: QueryAnalysisResult
@@ -397,6 +398,10 @@ export async function analyzeBatchVariations(
     const aggregatedMetrics = aggregateResults(allQueryResults, myDomain)
     const visualizationData = generateVisualizationData(allQueryResults, aggregatedMetrics)
 
+    // 브랜드 언급 통합 집계 (모든 쿼리 결과에서)
+    const aggregatedBrandMentions = aggregateBrandMentions(allQueryResults)
+    console.log('[BatchAnalysis] Aggregated brand mentions:', JSON.stringify(aggregatedBrandMentions, null, 2))
+
     console.log('[BatchAnalysis] Aggregated metrics:', JSON.stringify(aggregatedMetrics, null, 2))
     console.log('[BatchAnalysis] Visualization data summary:', {
       summaryCards: visualizationData.summaryCards,
@@ -404,10 +409,21 @@ export async function analyzeBatchVariations(
       topDomainsLength: visualizationData.topDomainsChart.length,
     })
 
+    // 베이스 쿼리 summary를 기반으로 통합 summary 생성
+    const baseSummarySource = allQueryResults.find(r => r.queryType === 'base')
+    const aggregatedSummary: AnalysisSummary = {
+      ...(baseSummarySource?.summary || {} as AnalysisSummary),
+      // 브랜드 언급 분석을 통합된 결과로 교체
+      brandMentionAnalysis: aggregatedBrandMentions,
+      brandMentioned: aggregatedBrandMentions.myBrand !== null && aggregatedBrandMentions.myBrand.mentionCount > 0,
+      brandMentionCount: aggregatedBrandMentions.myBrand?.mentionCount || 0,
+    }
+
     // 5. 최종 결과 저장
     const updatePayload: FinalAnalysisUpdatePayload = {
       status: 'completed',
       completed_at: new Date().toISOString(),
+      summary: aggregatedSummary,  // 통합된 브랜드 언급 분석 포함
       intermediate_results: {
         allQueryResults,
         baseQueryResult: allQueryResults.find(r => r.queryType === 'base'),
@@ -740,6 +756,164 @@ function generateVisualizationData(
     topDomainsChart,
     queryTypeChart,
     summaryCards,
+  }
+}
+
+/**
+ * 모든 쿼리 결과에서 브랜드 언급 통합 집계
+ * 베이스 쿼리 + 모든 변형 쿼리의 brandMentionAnalysis를 합산
+ */
+function aggregateBrandMentions(results: QueryAnalysisResult[]): BrandMentionAnalysis {
+  const successfulResults = results.filter(r => !r.error && r.summary?.brandMentionAnalysis)
+
+  if (successfulResults.length === 0) {
+    return {
+      myBrand: null,
+      competitors: [],
+      totalBrandMentions: 0,
+    }
+  }
+
+  // 내 브랜드 통합
+  let aggregatedMyBrand: BrandMention | null = null
+  const allContexts: string[] = []
+  const allMentionedLLMs = new Set<LLMType>()
+  let totalMyBrandMentions = 0
+  const mentionCountByLLM: Record<LLMType, number> = {
+    perplexity: 0,
+    chatgpt: 0,
+    gemini: 0,
+    claude: 0,
+  }
+
+  for (const result of successfulResults) {
+    const brandAnalysis = result.summary.brandMentionAnalysis
+    if (!brandAnalysis?.myBrand) continue
+
+    const myBrand = brandAnalysis.myBrand
+    totalMyBrandMentions += myBrand.mentionCount
+
+    // LLM별 언급 횟수 합산
+    if (myBrand.mentionCountByLLM) {
+      for (const llm of ['perplexity', 'chatgpt', 'gemini', 'claude'] as LLMType[]) {
+        mentionCountByLLM[llm] += myBrand.mentionCountByLLM[llm] || 0
+      }
+    }
+
+    // 언급된 LLM 목록 합집합
+    if (myBrand.mentionedInLLMs) {
+      myBrand.mentionedInLLMs.forEach(llm => allMentionedLLMs.add(llm))
+    }
+
+    // 문맥 수집 (중복 제거)
+    if (myBrand.contexts) {
+      for (const ctx of myBrand.contexts) {
+        if (!allContexts.some(c => c.includes(ctx.substring(10, ctx.length - 10)))) {
+          allContexts.push(ctx)
+        }
+      }
+    }
+
+    // 첫 번째 결과에서 기본 정보 가져오기
+    if (!aggregatedMyBrand) {
+      aggregatedMyBrand = {
+        brand: myBrand.brand,
+        aliases: myBrand.aliases,
+        mentionCount: 0,
+        mentionedInLLMs: [],
+        contexts: [],
+      }
+    }
+  }
+
+  if (aggregatedMyBrand) {
+    aggregatedMyBrand.mentionCount = totalMyBrandMentions
+    aggregatedMyBrand.mentionedInLLMs = Array.from(allMentionedLLMs)
+    aggregatedMyBrand.mentionCountByLLM = mentionCountByLLM
+    aggregatedMyBrand.contexts = allContexts.slice(0, 10) // 최대 10개
+  }
+
+  // 경쟁사 통합
+  const competitorMap = new Map<string, {
+    brand: string
+    aliases: string[]
+    mentionCount: number
+    mentionedInLLMs: Set<LLMType>
+    mentionCountByLLM: Record<LLMType, number>
+    contexts: string[]
+  }>()
+
+  for (const result of successfulResults) {
+    const brandAnalysis = result.summary.brandMentionAnalysis
+    if (!brandAnalysis?.competitors) continue
+
+    for (const competitor of brandAnalysis.competitors) {
+      const key = competitor.brand.toLowerCase()
+
+      if (!competitorMap.has(key)) {
+        competitorMap.set(key, {
+          brand: competitor.brand,
+          aliases: competitor.aliases || [],
+          mentionCount: 0,
+          mentionedInLLMs: new Set(),
+          mentionCountByLLM: { perplexity: 0, chatgpt: 0, gemini: 0, claude: 0 },
+          contexts: [],
+        })
+      }
+
+      const existing = competitorMap.get(key)!
+      existing.mentionCount += competitor.mentionCount
+
+      // LLM별 언급 횟수 합산
+      if (competitor.mentionCountByLLM) {
+        for (const llm of ['perplexity', 'chatgpt', 'gemini', 'claude'] as LLMType[]) {
+          existing.mentionCountByLLM[llm] += competitor.mentionCountByLLM[llm] || 0
+        }
+      }
+
+      // 언급된 LLM 합집합
+      if (competitor.mentionedInLLMs) {
+        competitor.mentionedInLLMs.forEach(llm => existing.mentionedInLLMs.add(llm))
+      }
+
+      // 문맥 수집 (중복 제거, 최대 5개)
+      if (competitor.contexts && existing.contexts.length < 5) {
+        for (const ctx of competitor.contexts) {
+          if (existing.contexts.length >= 5) break
+          if (!existing.contexts.some(c => c.includes(ctx.substring(10, ctx.length - 10)))) {
+            existing.contexts.push(ctx)
+          }
+        }
+      }
+    }
+  }
+
+  // Map을 배열로 변환하고 정렬
+  const aggregatedCompetitors: BrandMention[] = Array.from(competitorMap.values())
+    .map(c => ({
+      brand: c.brand,
+      aliases: c.aliases,
+      mentionCount: c.mentionCount,
+      mentionedInLLMs: Array.from(c.mentionedInLLMs),
+      mentionCountByLLM: c.mentionCountByLLM,
+      contexts: c.contexts,
+    }))
+    .sort((a, b) => b.mentionCount - a.mentionCount)
+
+  const totalBrandMentions = (aggregatedMyBrand?.mentionCount || 0) +
+    aggregatedCompetitors.reduce((sum, c) => sum + c.mentionCount, 0)
+
+  console.log('[aggregateBrandMentions] Result:', {
+    myBrandMentions: aggregatedMyBrand?.mentionCount || 0,
+    competitorCount: aggregatedCompetitors.length,
+    totalBrandMentions,
+    queriesAnalyzed: successfulResults.length,
+  })
+
+  return {
+    myBrand: aggregatedMyBrand,
+    competitors: aggregatedCompetitors,
+    totalBrandMentions,
   }
 }
 

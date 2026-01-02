@@ -100,29 +100,31 @@ Deno.serve(async (req) => {
 브랜드명: "${brand}"
 ${contextSection}
 
-다음 유형의 별칭을 포함해주세요:
-1. 한글 정식 명칭 (업종 포함)
-2. 한글 줄임말/약칭 (업종 포함)
-3. 영문 정식 명칭 (업종 포함)
-4. 영문 줄임말/약칭 (업종 포함)
-5. 흔히 사용되는 별명이나 속칭
-6. 띄어쓰기 변형 (예: "삼성 생명" vs "삼성생명")
+**필수 포함 항목 (반드시 첫 번째로 포함):**
+1. 해당 브랜드의 정식 회사명 (예: "메리츠화재", "삼성생명", "현대해상")
+2. 정식 회사명의 띄어쓰기 변형 (예: "메리츠 화재", "삼성 생명")
+
+다음 유형의 별칭을 추가로 포함해주세요:
+3. 한글 줄임말/약칭
+4. 영문 정식 명칭 (예: "Meritz Fire", "Samsung Life")
+5. 영문 약칭 (예: "Meritz", "Samsung")
+6. 흔히 사용되는 별명이나 속칭
 7. 검색어 컨텍스트와 결합된 형태 (예: "삼성생명 암보험")
 
 **절대 포함하지 말아야 할 것:**
-- 그룹명/모회사명 단독 (예: "삼성", "현대", "한화", "롯데", "신한")
-- 영문 그룹명 단독 (예: "samsung", "hyundai", "hanwha", "lotte", "shinhan")
+- 그룹명/모회사명 단독 (예: "삼성", "현대", "한화", "롯데", "신한") - 단, 정식 회사명이 그룹명+업종인 경우는 허용
 - 업종 키워드 단독 (예: "보험", "생명", "화재", "증권")
-- 너무 짧거나 일반적인 단어 (3글자 미만 또는 일반 명사)
+- 너무 짧거나 일반적인 단어 (2글자 미만)
 ${query ? '- 검색어 컨텍스트와 관련 없는 업종의 별칭' : ''}
 
 생성 규칙:
-- 최소 3개, 최대 10개의 별칭 생성
+- 최소 5개, 최대 15개의 별칭 생성
+- 정식 회사명을 반드시 첫 번째로 포함
 - 모든 별칭은 해당 브랜드를 특정할 수 있어야 함
 - 중복 제거
 
 JSON 배열 형식으로만 응답해주세요. 다른 텍스트 없이 배열만 반환:
-["별칭1", "별칭2", "별칭3", ...]`
+["정식회사명", "별칭1", "별칭2", ...]`
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
@@ -225,32 +227,47 @@ JSON 배열 형식으로만 응답해주세요. 다른 텍스트 없이 배열�
 /**
  * 너무 짧거나 일반적인 별칭 필터링
  * LLM이 잘못 생성한 별칭을 후처리로 제거
+ *
+ * 중요: 그룹명+업종 조합(예: 메리츠화재, 삼성생명)은 핵심 브랜드명이므로 필터링하지 않음
  */
 function filterInvalidAliases(aliases: string[], originalBrand: string): string[] {
-  // 제외할 일반적인 그룹명/단어 목록
-  // 주의: 단독 브랜드(라이나, AIA, 캐롯, 처브, 악사 등)는 제외하지 않음
-  const excludedWords = new Set([
-    // 한글 그룹명 (다수 계열사가 있는 그룹만)
+  // 제외할 그룹명 단독 (다수 계열사가 있는 그룹만)
+  const excludedGroupNames = new Set([
     '삼성', '현대', '한화', '롯데', '신한', 'lg', '엘지', 'sk', '에스케이',
     'kb', '케이비', 'nh', '농협', 'db', '디비', 'mg', '카카오', '네이버',
     '교보', '동양', '흥국', '미래에셋', '하나', '우리', '기업', '국민', '메리츠',
-    // 영문 그룹명
     'samsung', 'hyundai', 'hanwha', 'lotte', 'shinhan', 'kakao', 'naver',
     'kyobo', 'hana', 'woori', 'meritz',
-    // 업종 키워드 단독
+  ])
+
+  // 제외할 업종 키워드 단독
+  const excludedIndustryWords = new Set([
     '보험', '생명', '화재', '손해', '손보', '증권', '은행', '캐피탈',
     '자산운용', '투자', '금융', '카드', '저축은행',
     'insurance', 'life', 'fire', 'marine', 'securities', 'bank', 'capital',
     'asset', 'investment', 'finance', 'card',
-    // 일반적인 단어
+  ])
+
+  // 제외할 일반적인 단어
+  const excludedGenericWords = new Set([
     'direct', 'online', 'mobile', 'smart', 'plus', 'pro', 'new',
     '다이렉트', '온라인', '모바일', '스마트', '플러스',
   ])
 
+  // 허용할 업종 키워드 (핵심 브랜드명 식별용)
+  const industryKeywords = ['생명', '화재', '손해', '손보', '증권', '은행', '해상',
+    'life', 'fire', 'marine', 'securities', 'bank']
+
   return aliases.filter(alias => {
     const lowerAlias = alias.toLowerCase().trim()
+    const normalizedAlias = lowerAlias.replace(/[\s\-_]/g, '')
 
-    // 1. 너무 짧은 별칭 제외 (한글 2자, 영문 4자 미만)
+    // 1. 원본 브랜드명은 항상 유지
+    if (lowerAlias === originalBrand.toLowerCase()) {
+      return true
+    }
+
+    // 2. 너무 짧은 별칭 제외 (한글 2자, 영문 3자 미만)
     const koreanOnly = alias.replace(/[a-zA-Z0-9\s]/g, '')
     const englishOnly = alias.replace(/[^a-zA-Z]/g, '')
 
@@ -258,26 +275,38 @@ function filterInvalidAliases(aliases: string[], originalBrand: string): string[
       console.log(`[DEBUG] Filtered (too short Korean): ${alias}`)
       return false
     }
-    if (koreanOnly.length === 0 && englishOnly.length < 4) {
+    if (koreanOnly.length === 0 && englishOnly.length < 3) {
       console.log(`[DEBUG] Filtered (too short English): ${alias}`)
       return false
     }
 
-    // 2. 제외 목록에 있는 단어와 정확히 일치하면 제외
-    if (excludedWords.has(lowerAlias)) {
-      console.log(`[DEBUG] Filtered (excluded word): ${alias}`)
-      return false
-    }
+    // 3. 그룹명+업종 조합인지 확인 (핵심 브랜드명으로 허용)
+    const isCoreBrandName = Array.from(excludedGroupNames).some(group => {
+      const hasGroup = normalizedAlias.includes(group)
+      const hasIndustry = industryKeywords.some(ind => normalizedAlias.includes(ind.toLowerCase()))
+      return hasGroup && hasIndustry
+    })
 
-    // 3. 원본 브랜드명은 유지 (정확히 일치하는 경우)
-    if (lowerAlias === originalBrand.toLowerCase()) {
+    if (isCoreBrandName) {
+      console.log(`[DEBUG] Allowed (core brand name): ${alias}`)
       return true
     }
 
-    // 4. 공백/특수문자 제거 후에도 제외 목록과 일치하면 제외
-    const normalizedAlias = lowerAlias.replace(/[\s\-_]/g, '')
-    if (excludedWords.has(normalizedAlias)) {
-      console.log(`[DEBUG] Filtered (normalized excluded word): ${alias}`)
+    // 4. 그룹명 단독은 제외
+    if (excludedGroupNames.has(lowerAlias) || excludedGroupNames.has(normalizedAlias)) {
+      console.log(`[DEBUG] Filtered (group name only): ${alias}`)
+      return false
+    }
+
+    // 5. 업종 키워드 단독은 제외
+    if (excludedIndustryWords.has(lowerAlias) || excludedIndustryWords.has(normalizedAlias)) {
+      console.log(`[DEBUG] Filtered (industry word only): ${alias}`)
+      return false
+    }
+
+    // 6. 일반적인 단어 단독은 제외
+    if (excludedGenericWords.has(lowerAlias) || excludedGenericWords.has(normalizedAlias)) {
+      console.log(`[DEBUG] Filtered (generic word): ${alias}`)
       return false
     }
 

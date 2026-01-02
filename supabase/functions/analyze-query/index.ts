@@ -353,13 +353,21 @@ async function analyzeBrandMentions(
     }
   }
 
-  // 내 브랜드 별칭 목록 생성
+  // 내 브랜드 별칭 목록 생성 (핵심 브랜드명 자동 추가)
   const myBrandAliases: string[] = []
   if (myBrand) {
     myBrandAliases.push(myBrand)
     if (brandAliases && brandAliases.length > 0) {
       myBrandAliases.push(...brandAliases)
     }
+    // 핵심 브랜드명 자동 추가 (영문/한글 변형)
+    const coreBrandNames = generateCoreBrandNames(myBrand)
+    for (const coreName of coreBrandNames) {
+      if (!myBrandAliases.some(a => a.toLowerCase() === coreName.toLowerCase())) {
+        myBrandAliases.push(coreName)
+      }
+    }
+    console.log('[DEBUG] Final brand aliases:', JSON.stringify(myBrandAliases))
   }
 
   // Google AI API 키 (감성 분석용)
@@ -816,4 +824,74 @@ function checkDomainMatch(citationDomain: string, targetDomain: string): boolean
   if (target.endsWith('.' + citation)) return true
 
   return false
+}
+
+/**
+ * 브랜드명에서 핵심 브랜드명 변형 자동 생성
+ * 영문 브랜드명 -> 한글 회사명, 한글 브랜드명 -> 영문 변형 등
+ *
+ * 예: "meritz" -> ["메리츠", "메리츠화재", "Meritz", "Meritz Fire"]
+ * 예: "메리츠화재" -> ["메리츠", "meritz", "Meritz Fire"]
+ */
+function generateCoreBrandNames(brand: string): string[] {
+  const coreBrands: string[] = []
+  const lowerBrand = brand.toLowerCase().trim()
+
+  // 보험사 영문-한글 매핑
+  const brandMappings: Record<string, string[]> = {
+    // 손해보험사
+    'meritz': ['메리츠', '메리츠화재', '메리츠 화재', 'Meritz', 'Meritz Fire'],
+    'samsung': ['삼성', '삼성화재', '삼성 화재', 'Samsung', 'Samsung Fire'],
+    'hyundai': ['현대', '현대해상', '현대 해상', 'Hyundai', 'Hyundai Marine'],
+    'db': ['DB', 'DB손해보험', 'DB손보', 'DB Insurance'],
+    'kb': ['KB', 'KB손해보험', 'KB손보', 'KB Insurance'],
+    'heungkuk': ['흥국', '흥국화재', '흥국 화재', 'Heungkuk'],
+    'hanwha': ['한화', '한화손해보험', '한화손보', 'Hanwha'],
+    'lotte': ['롯데', '롯데손해보험', '롯데손보', 'Lotte'],
+    'mg': ['MG', 'MG손해보험', 'MG손보'],
+    'carrot': ['캐롯', '캐롯손해보험', 'Carrot'],
+
+    // 생명보험사
+    'samsunglife': ['삼성생명', '삼성 생명', 'Samsung Life'],
+    'hanwhalife': ['한화생명', '한화 생명', 'Hanwha Life'],
+    'kyobo': ['교보', '교보생명', '교보 생명', 'Kyobo', 'Kyobo Life'],
+    'shinhan': ['신한', '신한라이프', '신한 라이프', 'Shinhan', 'Shinhan Life'],
+    'nhlife': ['NH', 'NH농협생명', '농협생명', 'NH Life'],
+    'dongyang': ['동양', '동양생명', '동양 생명', 'Tongyang'],
+    'aia': ['AIA', 'AIA생명', 'AIA Korea'],
+    'prudential': ['푸르덴셜', '푸르덴셜생명', 'Prudential'],
+    'metlife': ['메트라이프', '메트라이프생명', 'MetLife'],
+
+    // 한글 브랜드명 역매핑
+    '메리츠': ['meritz', 'Meritz', '메리츠화재', '메리츠 화재', 'Meritz Fire'],
+    '메리츠화재': ['meritz', 'Meritz', '메리츠', 'Meritz Fire'],
+    '삼성화재': ['samsung', 'Samsung', '삼성', 'Samsung Fire'],
+    '현대해상': ['hyundai', 'Hyundai', '현대', 'Hyundai Marine'],
+    '한화손해보험': ['hanwha', 'Hanwha', '한화손보', '한화'],
+    'db손해보험': ['db', 'DB', 'DB손보', 'DB Insurance'],
+    'kb손해보험': ['kb', 'KB', 'KB손보', 'KB Insurance'],
+    '삼성생명': ['samsunglife', 'Samsung Life', '삼성', 'Samsung'],
+    '한화생명': ['hanwhalife', 'Hanwha Life', '한화', 'Hanwha'],
+    '교보생명': ['kyobo', 'Kyobo Life', '교보', 'Kyobo'],
+    '신한라이프': ['shinhan', 'Shinhan Life', '신한'],
+  }
+
+  // 정확한 매핑 확인
+  if (brandMappings[lowerBrand]) {
+    coreBrands.push(...brandMappings[lowerBrand])
+  }
+
+  // 부분 매칭 (예: "meritz fire" -> "meritz" 매핑 적용)
+  for (const [key, values] of Object.entries(brandMappings)) {
+    if (lowerBrand.includes(key) || key.includes(lowerBrand)) {
+      for (const value of values) {
+        if (!coreBrands.includes(value)) {
+          coreBrands.push(value)
+        }
+      }
+    }
+  }
+
+  // 중복 제거
+  return [...new Set(coreBrands)]
 }
