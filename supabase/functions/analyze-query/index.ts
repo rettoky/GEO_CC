@@ -380,13 +380,28 @@ async function analyzeBrandMentions(
 
     // 감성 분석 수행
     let sentimentAnalysis: BrandMentionSentiment[] = []
+    console.log('[DEBUG] Sentiment analysis check:', {
+      contextsWithSourceLength: detection.contextsWithSource.length,
+      hasGoogleApiKey: !!googleApiKey,
+      myBrand
+    })
     if (detection.contextsWithSource.length > 0 && googleApiKey) {
       console.log('[DEBUG] Running sentiment analysis for my brand:', myBrand)
-      sentimentAnalysis = await analyzeBrandSentiments(
-        detection.contextsWithSource,
-        myBrand || '',
-        googleApiKey
-      )
+      try {
+        sentimentAnalysis = await analyzeBrandSentiments(
+          detection.contextsWithSource,
+          myBrand || '',
+          googleApiKey
+        )
+        console.log('[DEBUG] Sentiment analysis result:', {
+          resultCount: sentimentAnalysis.length,
+          results: sentimentAnalysis
+        })
+      } catch (error) {
+        console.error('[DEBUG] Sentiment analysis error:', error)
+      }
+    } else {
+      console.log('[DEBUG] Skipping sentiment analysis - conditions not met')
     }
 
     myBrandMention = {

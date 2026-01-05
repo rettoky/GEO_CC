@@ -15,7 +15,7 @@
 import { createClient } from '@/lib/supabase/client'
 import { createQueryVariationsBulk } from '@/lib/supabase/queries/variations'
 import type { GeneratedVariation } from '@/types/queryVariations'
-import type { AnalysisResults, AnalysisSummary, LLMType, BrandMentionAnalysis, BrandMention } from '@/lib/supabase/types'
+import type { AnalysisResults, AnalysisSummary, LLMType, BrandMentionAnalysis, BrandMention, BrandMentionSentiment } from '@/lib/supabase/types'
 
 export interface BatchAnalysisProgress {
   stage: 'init' | 'variations' | 'base_analysis' | 'llm_analysis' | 'aggregation' | 'completed'
@@ -785,6 +785,8 @@ function aggregateBrandMentions(results: QueryAnalysisResult[]): BrandMentionAna
     gemini: 0,
     claude: 0,
   }
+  // 감성 분석 결과 수집
+  const allMyBrandSentiments: BrandMentionSentiment[] = []
 
   for (const result of successfulResults) {
     const brandAnalysis = result.summary.brandMentionAnalysis
@@ -814,6 +816,11 @@ function aggregateBrandMentions(results: QueryAnalysisResult[]): BrandMentionAna
       }
     }
 
+    // 감성 분석 결과 수집
+    if (myBrand.sentimentAnalysis && myBrand.sentimentAnalysis.length > 0) {
+      allMyBrandSentiments.push(...myBrand.sentimentAnalysis)
+    }
+
     // 첫 번째 결과에서 기본 정보 가져오기
     if (!aggregatedMyBrand) {
       aggregatedMyBrand = {
@@ -831,6 +838,10 @@ function aggregateBrandMentions(results: QueryAnalysisResult[]): BrandMentionAna
     aggregatedMyBrand.mentionedInLLMs = Array.from(allMentionedLLMs)
     aggregatedMyBrand.mentionCountByLLM = mentionCountByLLM
     aggregatedMyBrand.contexts = allContexts.slice(0, 10) // 최대 10개
+    // 감성 분석 결과 추가 (수집된 모든 결과 포함)
+    if (allMyBrandSentiments.length > 0) {
+      aggregatedMyBrand.sentimentAnalysis = allMyBrandSentiments
+    }
   }
 
   // 경쟁사 통합
@@ -841,6 +852,7 @@ function aggregateBrandMentions(results: QueryAnalysisResult[]): BrandMentionAna
     mentionedInLLMs: Set<LLMType>
     mentionCountByLLM: Record<LLMType, number>
     contexts: string[]
+    sentiments: BrandMentionSentiment[]
   }>()
 
   for (const result of successfulResults) {
@@ -858,6 +870,7 @@ function aggregateBrandMentions(results: QueryAnalysisResult[]): BrandMentionAna
           mentionedInLLMs: new Set(),
           mentionCountByLLM: { perplexity: 0, chatgpt: 0, gemini: 0, claude: 0 },
           contexts: [],
+          sentiments: [],
         })
       }
 
@@ -885,6 +898,11 @@ function aggregateBrandMentions(results: QueryAnalysisResult[]): BrandMentionAna
           }
         }
       }
+
+      // 감성 분석 결과 수집
+      if (competitor.sentimentAnalysis && competitor.sentimentAnalysis.length > 0) {
+        existing.sentiments.push(...competitor.sentimentAnalysis)
+      }
     }
   }
 
@@ -897,6 +915,8 @@ function aggregateBrandMentions(results: QueryAnalysisResult[]): BrandMentionAna
       mentionedInLLMs: Array.from(c.mentionedInLLMs),
       mentionCountByLLM: c.mentionCountByLLM,
       contexts: c.contexts,
+      // 감성 분석 결과 추가
+      ...(c.sentiments.length > 0 ? { sentimentAnalysis: c.sentiments } : {}),
     }))
     .sort((a, b) => b.mentionCount - a.mentionCount)
 
