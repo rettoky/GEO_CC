@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
 
     const results = await Promise.allSettled([
       callPerplexity(query),
-      callOpenAI(query),
+      callOpenAI(query, { targetBrand: brand, targetDomain: domain }),
       callGemini(query),
       callClaude(query),
     ])

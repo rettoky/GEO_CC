@@ -143,6 +143,33 @@ export interface BrandMentionAnalysis {
 }
 
 /**
+ * 브랜드-도메인 매핑 테이블
+ * GPT에서 인용이 없을 때 브랜드 언급으로부터 도메인을 추론하기 위함
+ */
+export const BRAND_DOMAIN_MAP: Record<string, string[]> = {
+  '메리츠화재': ['meritz.com', 'meritzfire.com', 'imeritz.com'],
+  '삼성화재': ['samsungfire.com', 'samsung.com'],
+  '현대해상': ['hi.co.kr', 'hyundaimarine.com'],
+  '한화생명': ['hanwhalife.com', 'hanwha.com'],
+  '교보생명': ['kyobo.co.kr', 'kyobolife.com'],
+  'DB손해보험': ['idblife.com', 'dbinsurance.co.kr'],
+  'KB손해보험': ['kbinsure.co.kr', 'kbdirect.com'],
+  '흥국생명': ['heungkuklife.co.kr'],
+  '동양생명': ['myangel.co.kr', 'tongyang.co.kr'],
+  '미래에셋생명': ['miraeassetlife.com'],
+  '라이나생명': ['lina.co.kr', 'linalife.co.kr'],
+  'NH농협생명': ['nhlife.co.kr'],
+  '신한라이프': ['shinhanlife.co.kr'],
+  'AIA생명': ['aia.co.kr'],
+  '처브라이프': ['chubb.com'],
+  '하나생명': ['hanalife.co.kr'],
+  '롯데손해보험': ['lotteins.co.kr'],
+  'MG손해보험': ['mggeneralins.com'],
+  '악사손해보험': ['axa.co.kr'],
+  '캐롯손해보험': ['carrotins.com'],
+}
+
+/**
  * 보험업계 경쟁사 브랜드 사전
  */
 export const INSURANCE_COMPETITOR_BRANDS: Record<string, string[]> = {
