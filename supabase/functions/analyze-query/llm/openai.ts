@@ -3,7 +3,6 @@
  */
 
 import type { LLMResult, UnifiedCitation, TextSpan } from './types.ts'
-import { BRAND_DOMAIN_MAP } from './types.ts'
 
 /**
  * 제외할 내부 서비스 도메인 목록
@@ -36,13 +35,107 @@ interface OpenAIResponse {
 }
 
 /**
+ * 텍스트 기반 탐지를 위한 옵션
+ * 사용자가 설정한 내 브랜드/도메인 및 경쟁사 정보를 동적으로 전달
+ */
+export interface TextBasedDetectionOptions {
+  // 내 브랜드 정보
+  myBrand?: string
+  myBrandAliases?: string[]
+  myDomain?: string
+  // 경쟁사 정보
+  competitors?: Array<{
+    name: string
+    aliases: string[]
+    domain?: string
+  }>
+}
+
+/**
+ * 브랜드-도메인 매핑 항목
+ */
+interface BrandDomainMapping {
+  brand: string
+  aliases: string[]
+  domain: string
+  isMyBrand: boolean
+}
+
+/**
+ * 사용자 설정에서 동적 브랜드-도메인 매핑 테이블 생성
+ * 하드코딩된 BRAND_DOMAIN_MAP 대신 사용자 입력을 기반으로 매핑 생성
+ */
+function buildDynamicBrandDomainMap(options?: TextBasedDetectionOptions): BrandDomainMapping[] {
+  const mappings: BrandDomainMapping[] = []
+
+  // 1. 내 브랜드 매핑 추가
+  if (options?.myBrand && options?.myDomain) {
+    const allAliases = [options.myBrand]
+    if (options.myBrandAliases && options.myBrandAliases.length > 0) {
+      allAliases.push(...options.myBrandAliases)
+    }
+
+    mappings.push({
+      brand: options.myBrand,
+      aliases: allAliases,
+      domain: normalizeDomain(options.myDomain),
+      isMyBrand: true,
+    })
+
+    console.log('[OpenAI] Dynamic mapping - My brand:', {
+      brand: options.myBrand,
+      aliases: allAliases,
+      domain: options.myDomain
+    })
+  }
+
+  // 2. 경쟁사 매핑 추가
+  if (options?.competitors && options.competitors.length > 0) {
+    for (const competitor of options.competitors) {
+      // 도메인이 있는 경쟁사만 매핑에 추가
+      if (competitor.domain) {
+        const allAliases = [competitor.name]
+        if (competitor.aliases && competitor.aliases.length > 0) {
+          allAliases.push(...competitor.aliases)
+        }
+
+        mappings.push({
+          brand: competitor.name,
+          aliases: allAliases,
+          domain: normalizeDomain(competitor.domain),
+          isMyBrand: false,
+        })
+      }
+    }
+
+    console.log('[OpenAI] Dynamic mapping - Competitors:', mappings.filter(m => !m.isMyBrand).length)
+  }
+
+  return mappings
+}
+
+/**
+ * 도메인 정규화 (프로토콜 제거, www 제거)
+ */
+function normalizeDomain(domain: string): string {
+  let normalized = domain.toLowerCase().trim()
+  // 프로토콜 제거
+  normalized = normalized.replace(/^https?:\/\//, '')
+  // www 제거
+  normalized = normalized.replace(/^www\./, '')
+  // 경로 제거
+  normalized = normalized.split('/')[0]
+  return normalized
+}
+
+/**
  * OpenAI Responses API 호출 및 인용 추출
  * @param query 검색 쿼리
- * @param options 타겟 브랜드/도메인 (텍스트 기반 탐지에 사용)
+ * @param options 사용자 설정 브랜드/도메인 정보 (동적 매핑에 사용)
  */
 export async function callOpenAI(
   query: string,
-  options?: { targetBrand?: string; targetDomain?: string }
+  options?: TextBasedDetectionOptions
 ): Promise<LLMResult> {
   const startTime = Date.now()
 
@@ -155,11 +248,13 @@ export async function callOpenAI(
     let textBasedFallbackUsed = false
     if (citations.length === 0 && answer.length > 0) {
       console.log('[OpenAI] No annotations found, using text-based detection fallback')
-      citations = createTextBasedCitations(
-        answer,
-        options?.targetBrand,
-        options?.targetDomain
-      )
+      console.log('[OpenAI] Options for text-based detection:', {
+        myBrand: options?.myBrand,
+        myDomain: options?.myDomain,
+        myBrandAliasesCount: options?.myBrandAliases?.length || 0,
+        competitorsCount: options?.competitors?.length || 0,
+      })
+      citations = createTextBasedCitations(answer, options)
       textBasedFallbackUsed = citations.length > 0
     }
 
@@ -288,50 +383,47 @@ function extractUrlsFromText(text: string): { url: string; position: number }[] 
 
 /**
  * 브랜드 언급에서 도메인 추론
- * BRAND_DOMAIN_MAP을 사용하여 브랜드명 → 도메인 매핑
+ * 동적으로 생성된 BrandDomainMapping을 사용하여 브랜드명/별칭 → 도메인 매핑
  */
 function inferDomainsFromBrands(
   text: string,
-  targetBrand?: string,
-  targetDomain?: string
-): { domain: string; brand: string; position: number; confidence: number }[] {
-  const results: { domain: string; brand: string; position: number; confidence: number }[] = []
+  mappings: BrandDomainMapping[]
+): { domain: string; brand: string; position: number; confidence: number; isMyBrand: boolean }[] {
+  const results: { domain: string; brand: string; position: number; confidence: number; isMyBrand: boolean }[] = []
 
-  // 모든 브랜드에 대해 검색
-  for (const [brand, domains] of Object.entries(BRAND_DOMAIN_MAP)) {
-    // 브랜드명 검색 (대소문자 구분 없이)
-    const brandPattern = new RegExp(brand, 'gi')
-    let match
+  // 각 브랜드 매핑에 대해 검색
+  for (const mapping of mappings) {
+    // 브랜드명과 모든 별칭을 검색
+    for (const alias of mapping.aliases) {
+      // 별칭 검색 (대소문자 구분 없이)
+      // 특수문자 이스케이프
+      const escapedAlias = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const aliasPattern = new RegExp(escapedAlias, 'gi')
+      let match
 
-    while ((match = brandPattern.exec(text)) !== null) {
-      // 첫 번째 도메인을 대표 도메인으로 사용
-      if (domains.length > 0) {
-        // 신뢰도: 타겟 브랜드/도메인과 일치하면 높음
-        let confidence = 0.7
-        if (targetBrand && brand.toLowerCase().includes(targetBrand.toLowerCase())) {
-          confidence = 0.9
-        }
-        if (targetDomain) {
-          const matchesTarget = domains.some(d =>
-            targetDomain.includes(d) || d.includes(targetDomain)
-          )
-          if (matchesTarget) confidence = 0.95
-        }
+      while ((match = aliasPattern.exec(text)) !== null) {
+        // 신뢰도: 내 브랜드면 높음
+        const confidence = mapping.isMyBrand ? 0.95 : 0.85
 
         results.push({
-          domain: domains[0],
-          brand,
+          domain: mapping.domain,
+          brand: mapping.brand,
           position: match.index,
           confidence,
+          isMyBrand: mapping.isMyBrand,
         })
       }
     }
   }
 
-  // 중복 제거 (같은 도메인은 첫 번째 언급만 유지)
+  // 중복 제거 (같은 도메인은 첫 번째 언급만 유지, 단 내 브랜드 우선)
   const uniqueResults = new Map<string, typeof results[0]>()
   for (const result of results) {
-    if (!uniqueResults.has(result.domain)) {
+    const existing = uniqueResults.get(result.domain)
+    if (!existing) {
+      uniqueResults.set(result.domain, result)
+    } else if (result.isMyBrand && !existing.isMyBrand) {
+      // 내 브랜드가 우선
       uniqueResults.set(result.domain, result)
     }
   }
@@ -342,14 +434,19 @@ function inferDomainsFromBrands(
 /**
  * 텍스트 기반 인용 생성 (annotation이 없을 때 대체)
  * URL 추출 + 브랜드-도메인 추론 결합
+ * 동적으로 생성된 브랜드-도메인 매핑 사용
  */
 function createTextBasedCitations(
   answer: string,
-  targetBrand?: string,
-  targetDomain?: string
+  options?: TextBasedDetectionOptions
 ): UnifiedCitation[] {
   const citations: UnifiedCitation[] = []
   const seenDomains = new Set<string>()
+
+  // 동적 브랜드-도메인 매핑 생성
+  const mappings = buildDynamicBrandDomainMap(options)
+
+  console.log('[OpenAI] Text-based citations - Dynamic mappings count:', mappings.length)
 
   // 1. URL 직접 추출
   const urls = extractUrlsFromText(answer)
@@ -383,40 +480,46 @@ function createTextBasedCitations(
     }
   }
 
-  // 2. 브랜드-도메인 추론
-  const inferredDomains = inferDomainsFromBrands(answer, targetBrand, targetDomain)
-  for (const { domain, brand, position, confidence } of inferredDomains) {
-    if (!seenDomains.has(domain)) {
-      seenDomains.add(domain)
+  // 2. 브랜드-도메인 추론 (동적 매핑 사용)
+  if (mappings.length > 0) {
+    const inferredDomains = inferDomainsFromBrands(answer, mappings)
+    console.log('[OpenAI] Text-based citations - Inferred domains:', inferredDomains.length)
 
-      // 문맥 추출 (브랜드 언급 주변 50자)
-      const contextStart = Math.max(0, position - 25)
-      const contextEnd = Math.min(answer.length, position + brand.length + 25)
-      const context = answer.substring(contextStart, contextEnd)
+    for (const { domain, brand, position, confidence, isMyBrand } of inferredDomains) {
+      if (!seenDomains.has(domain)) {
+        seenDomains.add(domain)
 
-      const textSpan: TextSpan = {
-        start: position,
-        end: position + brand.length,
-        text: context,
-        confidence,
+        // 문맥 추출 (브랜드 언급 주변 50자)
+        const contextStart = Math.max(0, position - 25)
+        const contextEnd = Math.min(answer.length, position + brand.length + 25)
+        const context = answer.substring(contextStart, contextEnd)
+
+        const textSpan: TextSpan = {
+          start: position,
+          end: position + brand.length,
+          text: context,
+          confidence,
+        }
+
+        citations.push({
+          id: crypto.randomUUID(),
+          source: 'chatgpt',
+          position: citations.length + 1,
+          url: `https://${domain}`, // 추론된 도메인으로 URL 생성
+          cleanUrl: `https://${domain}`,
+          domain,
+          title: `${brand} (${isMyBrand ? '내 브랜드' : '경쟁사'} - 추론됨)`,
+          snippet: context,
+          publishedDate: null,
+          mentionCount: 1,
+          avgConfidence: confidence,
+          confidenceScores: [confidence],
+          textSpans: [textSpan],
+        })
       }
-
-      citations.push({
-        id: crypto.randomUUID(),
-        source: 'chatgpt',
-        position: citations.length + 1,
-        url: `https://${domain}`, // 추론된 도메인으로 URL 생성
-        cleanUrl: `https://${domain}`,
-        domain,
-        title: `${brand} (추론됨)`,
-        snippet: context,
-        publishedDate: null,
-        mentionCount: 1,
-        avgConfidence: confidence,
-        confidenceScores: [confidence],
-        textSpans: [textSpan],
-      })
     }
+  } else {
+    console.log('[OpenAI] Text-based citations - No dynamic mappings available, skipping brand inference')
   }
 
   return citations

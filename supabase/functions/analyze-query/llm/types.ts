@@ -201,6 +201,7 @@ export const INSURANCE_COMPETITOR_BRANDS: Record<string, string[]> = {
 export interface CompetitorBrand {
   name: string
   aliases: string[]
+  domain?: string // 경쟁사 도메인 (선택적, 텍스트 기반 폴백 시 도메인 추론에 사용)
 }
 
 export interface AnalyzeRequest {

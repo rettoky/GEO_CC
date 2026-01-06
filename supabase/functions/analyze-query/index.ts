@@ -16,7 +16,7 @@ import type {
   MentionCountByLLM,
 } from './llm/types.ts'
 import { callPerplexity } from './llm/perplexity.ts'
-import { callOpenAI } from './llm/openai.ts'
+import { callOpenAI, type TextBasedDetectionOptions } from './llm/openai.ts'
 import { callGemini } from './llm/gemini.ts'
 import { callClaude } from './llm/claude.ts'
 import { analyzeBrandSentiments } from './llm/sentiment.ts'
@@ -47,9 +47,9 @@ Deno.serve(async (req) => {
   try {
     // 요청 파싱
     // skipSave: 배치 분석에서 호출 시 true - DB 저장 건너뜀
-    // competitors: 사용자가 입력한 경쟁사 브랜드 목록
+    // competitors: 사용자가 입력한 경쟁사 브랜드 목록 (도메인 포함 가능)
     const { query, domain, brand, brandAliases, competitors, skipSave }: AnalyzeRequest & {
-      competitors?: Array<{ name: string; aliases: string[] }>;
+      competitors?: Array<{ name: string; aliases: string[]; domain?: string }>;
       skipSave?: boolean
     } = await req.json()
 
@@ -110,9 +110,29 @@ Deno.serve(async (req) => {
       anthropic: !!Deno.env.get('ANTHROPIC_API_KEY'),
     })
 
+    // GPT 텍스트 기반 폴백을 위한 동적 매핑 옵션 생성
+    const openaiOptions: TextBasedDetectionOptions = {
+      myBrand: brand,
+      myBrandAliases: brandAliases,
+      myDomain: domain,
+      competitors: competitors?.map(c => ({
+        name: c.name,
+        aliases: c.aliases,
+        domain: c.domain, // 경쟁사 도메인 전달 (있는 경우)
+      })),
+    }
+
+    console.log('[DEBUG] OpenAI options for text-based fallback:', {
+      myBrand: openaiOptions.myBrand,
+      myDomain: openaiOptions.myDomain,
+      aliasesCount: openaiOptions.myBrandAliases?.length || 0,
+      competitorsCount: openaiOptions.competitors?.length || 0,
+      competitorsWithDomain: openaiOptions.competitors?.filter(c => c.domain).length || 0,
+    })
+
     const results = await Promise.allSettled([
       callPerplexity(query),
-      callOpenAI(query, { targetBrand: brand, targetDomain: domain }),
+      callOpenAI(query, openaiOptions),
       callGemini(query),
       callClaude(query),
     ])
