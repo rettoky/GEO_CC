@@ -479,13 +479,25 @@ export function AnalysisDetailView({ analysis }: AnalysisDetailViewProps) {
         section="myDomain"
       />
 
+      {/* 상위 인용 도메인 + 전체 도메인 순위 (왼쪽) | 경쟁사 브랜드 분석 (오른쪽) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <CompetitorComparison
-          results={results}
-          myDomain={analysis.my_domain || undefined}
-          crossValidation={crossValidation}
-          section="topCompetitors"
-        />
+        {/* 왼쪽 열: 상위 인용 도메인 + 전체 도메인 순위 */}
+        <div className="space-y-6">
+          <CompetitorComparison
+            results={results}
+            myDomain={analysis.my_domain || undefined}
+            crossValidation={crossValidation}
+            section="topCompetitors"
+          />
+          <CompetitorComparison
+            results={results}
+            myDomain={analysis.my_domain || undefined}
+            crossValidation={crossValidation}
+            section="ranking"
+            compact
+          />
+        </div>
+        {/* 오른쪽 열: 경쟁사 브랜드 분석 */}
         <BrandMentionCard
           brandMentionAnalysis={summary.brandMentionAnalysis}
           myBrand={analysis.my_brand || undefined}
@@ -513,13 +525,6 @@ export function AnalysisDetailView({ analysis }: AnalysisDetailViewProps) {
           />
         </ErrorBoundary>
       )}
-
-      <CompetitorComparison
-        results={results}
-        myDomain={analysis.my_domain || undefined}
-        crossValidation={crossValidation}
-        section="ranking"
-      />
 
       <CompetitorComparison
         results={results}
