@@ -168,12 +168,14 @@ export function CompetitorComparison({ results, myDomain, crossValidation, secti
 
       // === 개선 필요 분석 ===
 
-      // 1. 미노출 LLM 구체적으로 표시
+      // 1. 미인용 LLM 구체적으로 표시 (도메인 인용 기준)
+      // 참고: 여기서 "미인용"은 도메인이 URL로 인용되지 않음을 의미
+      // 브랜드 언급과는 별개 - 브랜드가 언급되어도 도메인이 인용되지 않을 수 있음
       if (notCitedLLMs.length > 0) {
         if (notCitedLLMs.length === 1) {
-          weaknesses.push(`${notCitedLLMNames[0]} 미노출 - 해당 LLM 최적화 필요`)
+          weaknesses.push(`${notCitedLLMNames[0]} 도메인 미인용`)
         } else {
-          weaknesses.push(`${notCitedLLMNames.join(', ')} 미노출`)
+          weaknesses.push(`${notCitedLLMNames.join(', ')} 도메인 미인용`)
         }
       }
 

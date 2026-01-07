@@ -37,6 +37,7 @@ export function SentimentDashboard({
   className,
 }: SentimentDashboardProps) {
   const [showNeutral, setShowNeutral] = useState(false)
+  const [showAllNeutral, setShowAllNeutral] = useState(false)
 
   // 감성별 그룹화
   const grouped = useMemo(() => {
@@ -327,7 +328,7 @@ export function SentimentDashboard({
           </CardHeader>
           <CardContent className="pt-4">
             <div className="space-y-2">
-              {grouped.neutral.slice(0, 3).map((mention, idx) => (
+              {(showAllNeutral ? grouped.neutral : grouped.neutral.slice(0, 3)).map((mention, idx) => (
                 <div
                   key={`neutral-${idx}`}
                   className="text-sm text-muted-foreground bg-gray-50 dark:bg-gray-900/30 rounded p-2 border-l-2 border-gray-300 dark:border-gray-600"
@@ -342,9 +343,22 @@ export function SentimentDashboard({
                 </div>
               ))}
               {grouped.neutral.length > 3 && (
-                <p className="text-xs text-center text-muted-foreground">
-                  +{grouped.neutral.length - 3}개 더 있음
-                </p>
+                <button
+                  onClick={() => setShowAllNeutral(!showAllNeutral)}
+                  className="w-full text-xs text-center text-muted-foreground hover:text-foreground transition-colors py-2 flex items-center justify-center gap-1"
+                >
+                  {showAllNeutral ? (
+                    <>
+                      접기
+                      <ChevronUp className="h-3 w-3" />
+                    </>
+                  ) : (
+                    <>
+                      +{grouped.neutral.length - 3}개 더 있음
+                      <ChevronDown className="h-3 w-3" />
+                    </>
+                  )}
+                </button>
               )}
             </div>
           </CardContent>

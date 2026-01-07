@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -8,6 +9,8 @@ import {
   ThumbsDown,
   MessageSquareQuote,
   Sparkles,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react'
 import type { BrandMentionSentiment, LLMType } from '@/lib/supabase/types'
 import { cn } from '@/lib/utils'
@@ -52,6 +55,7 @@ export function SentimentCard({
   maxDisplay = 5,
   className,
 }: SentimentCardProps) {
+  const [showAll, setShowAll] = useState(false)
   const isPositive = type === 'positive'
 
   // 스타일 설정
@@ -81,8 +85,8 @@ export function SentimentCard({
     ? '긍정적으로 언급된 내용이 없습니다'
     : '부정적으로 언급된 내용이 없습니다'
 
-  // 표시할 언급 (최대 개수 제한)
-  const displayedMentions = mentions.slice(0, maxDisplay)
+  // 표시할 언급 (최대 개수 제한, showAll 시 전체 표시)
+  const displayedMentions = showAll ? mentions : mentions.slice(0, maxDisplay)
   const remainingCount = mentions.length - maxDisplay
 
   return (
@@ -167,13 +171,24 @@ export function SentimentCard({
                 </div>
               ))}
 
-              {/* 더 많은 항목이 있을 때 */}
+              {/* 더 많은 항목이 있을 때 - 클릭으로 펼치기/접기 */}
               {remainingCount > 0 && (
-                <div className="text-center py-2">
-                  <span className="text-xs text-muted-foreground">
-                    +{remainingCount}개 더 있음
-                  </span>
-                </div>
+                <button
+                  onClick={() => setShowAll(!showAll)}
+                  className="w-full text-center py-2 text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center gap-1"
+                >
+                  {showAll ? (
+                    <>
+                      접기
+                      <ChevronUp className="h-3 w-3" />
+                    </>
+                  ) : (
+                    <>
+                      +{remainingCount}개 더 있음
+                      <ChevronDown className="h-3 w-3" />
+                    </>
+                  )}
+                </button>
               )}
             </div>
           </ScrollArea>

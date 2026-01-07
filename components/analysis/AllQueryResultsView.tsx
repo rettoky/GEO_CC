@@ -690,13 +690,13 @@ export const AllQueryResultsView = forwardRef<AllQueryResultsViewHandle, AllQuer
                                           ? highlightText(
                                               llmResult.answer || '응답 없음',
                                               effectiveAliases,
-                                              'font-bold text-red-600'
+                                              'font-bold text-red-600 bg-red-100 dark:bg-red-900/40 px-0.5 rounded'
                                             )
                                           : filterMode === 'myDomain' && myDomain
                                           ? highlightText(
                                               llmResult.answer || '응답 없음',
                                               [myDomain],
-                                              'font-bold text-red-600'
+                                              'font-bold text-blue-600 bg-blue-100 dark:bg-blue-900/40 px-0.5 rounded'
                                             )
                                           : llmResult.answer || '응답 없음'}
                                       </div>
