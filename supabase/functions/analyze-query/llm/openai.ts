@@ -145,6 +145,17 @@ export async function callOpenAI(
       throw new Error('OPENAI_API_KEY not found')
     }
 
+    // 한국어 보험/금융 도메인에서 구체적인 답변을 유도하는 시스템 프롬프트
+    const instructions = `당신은 한국 보험/금융 전문가입니다. 사용자의 질문에 대해:
+
+1. 구체적인 보험사명과 상품명을 언급하세요
+2. 실제 보장 금액, 보험료 범위를 포함하세요
+3. 장단점을 비교하여 설명하세요
+4. 검색 결과의 출처를 적극 활용하세요
+5. 최소 1000자 이상으로 상세히 답변하세요
+
+일반적인 조언만 하지 말고, 검색을 통해 찾은 구체적인 정보를 바탕으로 답변하세요.`
+
     const response = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: {
@@ -152,12 +163,14 @@ export async function callOpenAI(
         'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-4.1-mini',  // gpt-4o-mini → gpt-4.1-mini (동일 비용, 더 나은 성능)
+        instructions,  // 시스템 프롬프트 추가
         input: query,
         tools: [{
           type: 'web_search_preview',
-          search_context_size: 'medium',  // 인용 품질 개선: low → medium (기본값)
+          search_context_size: 'high',  // medium → high (더 많은 검색 컨텍스트)
         }],
+        max_output_tokens: 4096,  // 긴 답변 허용
       }),
     })
 
@@ -260,7 +273,7 @@ export async function callOpenAI(
 
     return {
       success: true,
-      model: 'gpt-4o-mini',
+      model: 'gpt-4.1-mini',
       answer,
       citations,
       responseTime,
@@ -277,7 +290,7 @@ export async function callOpenAI(
     const responseTime = Date.now() - startTime
     return {
       success: false,
-      model: 'gpt-4o-mini',
+      model: 'gpt-4.1-mini',
       answer: '',
       citations: [],
       responseTime,
