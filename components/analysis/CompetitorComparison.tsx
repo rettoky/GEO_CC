@@ -1,8 +1,9 @@
 'use client'
 
+import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Trophy, Minus, TrendingUp, TrendingDown, Target, AlertTriangle, CheckCircle2, XCircle, Link2 } from 'lucide-react'
+import { Trophy, Minus, TrendingUp, TrendingDown, Target, AlertTriangle, CheckCircle2, XCircle, Link2, ChevronDown, ChevronUp } from 'lucide-react'
 import { Progress } from '@/components/ui/progress'
 import type { AnalysisResults, UnifiedCitation, CrossValidation, LLMType } from '@/types'
 import { ACTIVE_LLMS } from '@/lib/constants/labels'
@@ -15,6 +16,8 @@ interface CompetitorComparisonProps {
   crossValidation?: CrossValidation
   /** 표시할 섹션 선택 (기본값: 'all') */
   section?: SectionType
+  /** 컴팩트 모드 (ranking 섹션에서 접기 기능 활성화) */
+  compact?: boolean
 }
 
 interface DomainStats {
@@ -54,7 +57,10 @@ const GRADE_DESCRIPTIONS: Record<string, string> = {
 /**
  * 경쟁사 도메인 비교 분석 (강화된 버전)
  */
-export function CompetitorComparison({ results, myDomain, crossValidation, section = 'all' }: CompetitorComparisonProps) {
+export function CompetitorComparison({ results, myDomain, crossValidation, section = 'all', compact = false }: CompetitorComparisonProps) {
+  // compact 모드에서 펼침/접힘 상태
+  const [showAllRanking, setShowAllRanking] = useState(false)
+
   // 결과가 없으면 렌더링하지 않음
   if (!results || Object.keys(results).length === 0) {
     return null
@@ -435,93 +441,145 @@ export function CompetitorComparison({ results, myDomain, crossValidation, secti
       )}
 
       {/* 전체 도메인 순위 */}
-      {showRanking && <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span>전체 도메인 순위</span>
-            <Badge variant="outline">
-              총 {totalDomains}개 도메인
-            </Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {domainStats.slice(0, 10).map((stat, index) => {
-              const percentage = (stat.citationCount / maxCitations) * 100
-              const rankIcon = index === 0 ? (
-                <Trophy className="h-5 w-5 text-yellow-500" />
-              ) : index === 1 ? (
-                <Trophy className="h-5 w-5 text-gray-400" />
-              ) : index === 2 ? (
-                <Trophy className="h-5 w-5 text-orange-500" />
-              ) : (
-                <Minus className="h-5 w-5 text-gray-300" />
-              )
+      {showRanking && (() => {
+        // compact 모드에서는 기본 5개만 표시, 그렇지 않으면 10개
+        const defaultDisplayCount = compact ? 5 : 10
+        const displayCount = compact && !showAllRanking ? defaultDisplayCount : Math.min(domainStats.length, 10)
+        const hiddenCount = domainStats.length - defaultDisplayCount
 
-              return (
-                <div
-                  key={stat.domain}
-                  className={`p-4 rounded-lg border-2 transition-all ${
-                    stat.isMyDomain
-                      ? 'bg-blue-50 border-blue-400 shadow-md'
-                      : 'bg-white border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      {rankIcon}
-                      <span className="font-semibold text-sm">
-                        {index + 1}위
-                      </span>
-                      <span className={`font-mono text-sm ${stat.isMyDomain ? 'text-blue-700 font-bold' : 'text-gray-700'}`}>
-                        {stat.domain}
-                      </span>
-                      {stat.isMyDomain && (
-                        <Badge variant="default" className="ml-2">내 도메인</Badge>
-                      )}
-                      <Badge className={`${GRADE_COLORS[stat.grade || 'C']} text-white text-xs`}>
-                        {stat.grade}
-                      </Badge>
+        return (
+          <Card>
+            <CardHeader className={compact ? 'pb-2' : ''}>
+              <CardTitle className="flex items-center justify-between">
+                <span className={compact ? 'text-base' : ''}>전체 도메인 순위</span>
+                <Badge variant="outline">
+                  총 {totalDomains}개 도메인
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className={compact ? 'space-y-2' : 'space-y-3'}>
+                {domainStats.slice(0, displayCount).map((stat, index) => {
+                  const percentage = (stat.citationCount / maxCitations) * 100
+                  const rankIcon = index === 0 ? (
+                    <Trophy className={`${compact ? 'h-4 w-4' : 'h-5 w-5'} text-yellow-500`} />
+                  ) : index === 1 ? (
+                    <Trophy className={`${compact ? 'h-4 w-4' : 'h-5 w-5'} text-gray-400`} />
+                  ) : index === 2 ? (
+                    <Trophy className={`${compact ? 'h-4 w-4' : 'h-5 w-5'} text-orange-500`} />
+                  ) : (
+                    <Minus className={`${compact ? 'h-4 w-4' : 'h-5 w-5'} text-gray-300`} />
+                  )
+
+                  return (
+                    <div
+                      key={stat.domain}
+                      className={`${compact ? 'p-2.5' : 'p-4'} rounded-lg border-2 transition-all ${
+                        stat.isMyDomain
+                          ? 'bg-blue-50 border-blue-400 shadow-md'
+                          : 'bg-white border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className={`flex items-center justify-between ${compact ? 'mb-1.5' : 'mb-2'}`}>
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          {rankIcon}
+                          <span className={`font-semibold ${compact ? 'text-xs' : 'text-sm'}`}>
+                            {index + 1}위
+                          </span>
+                          <span className={`font-mono ${compact ? 'text-xs truncate max-w-[120px]' : 'text-sm'} ${stat.isMyDomain ? 'text-blue-700 font-bold' : 'text-gray-700'}`}>
+                            {stat.domain}
+                          </span>
+                          {stat.isMyDomain && (
+                            <Badge variant="default" className={compact ? 'text-xs py-0 px-1.5' : 'ml-2'}>내 도메인</Badge>
+                          )}
+                          <Badge className={`${GRADE_COLORS[stat.grade || 'C']} text-white ${compact ? 'text-xs py-0 px-1.5' : 'text-xs'}`}>
+                            {stat.grade}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {compact ? (
+                            // 컴팩트 모드: 간략한 정보 표시
+                            <>
+                              <span className="text-xs text-muted-foreground">{stat.citationCount}회</span>
+                              <div className="flex gap-0.5">
+                                {ACTIVE_LLMS.map(llm => (
+                                  <div
+                                    key={llm}
+                                    className={`w-4 h-4 rounded text-[10px] flex items-center justify-center font-bold ${
+                                      stat.llms.includes(llm)
+                                        ? 'bg-green-500 text-white'
+                                        : 'bg-gray-200 text-gray-400'
+                                    }`}
+                                    title={LLM_NAMES[llm]}
+                                  >
+                                    {LLM_NAMES[llm]?.charAt(0)}
+                                  </div>
+                                ))}
+                              </div>
+                            </>
+                          ) : (
+                            // 일반 모드: 상세 정보 표시
+                            <>
+                              <div className="text-right">
+                                <div className="text-xs text-muted-foreground">인용 수</div>
+                                <div className="text-lg font-bold">{stat.citationCount}</div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-xs text-muted-foreground">LLM 수</div>
+                                <div className="text-lg font-bold">{stat.llmCount}/{ACTIVE_LLMS.length}</div>
+                              </div>
+                              <div className="flex gap-1">
+                                {ACTIVE_LLMS.map(llm => (
+                                  <div
+                                    key={llm}
+                                    className={`w-6 h-6 rounded text-xs flex items-center justify-center font-bold ${
+                                      stat.llms.includes(llm)
+                                        ? 'bg-green-500 text-white'
+                                        : 'bg-gray-200 text-gray-400'
+                                    }`}
+                                    title={LLM_NAMES[llm]}
+                                  >
+                                    {LLM_NAMES[llm]?.charAt(0)}
+                                  </div>
+                                ))}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <Progress value={percentage} className={compact ? 'h-1.5' : 'h-2'} />
                     </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        <div className="text-xs text-muted-foreground">인용 수</div>
-                        <div className="text-lg font-bold">{stat.citationCount}</div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-xs text-muted-foreground">LLM 수</div>
-                        <div className="text-lg font-bold">{stat.llmCount}/{ACTIVE_LLMS.length}</div>
-                      </div>
-                      <div className="flex gap-1">
-                        {ACTIVE_LLMS.map(llm => (
-                          <div
-                            key={llm}
-                            className={`w-6 h-6 rounded text-xs flex items-center justify-center font-bold ${
-                              stat.llms.includes(llm)
-                                ? 'bg-green-500 text-white'
-                                : 'bg-gray-200 text-gray-400'
-                            }`}
-                            title={LLM_NAMES[llm]}
-                          >
-                            {LLM_NAMES[llm]?.charAt(0)}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                  )
+                })}
+
+                {/* 더보기/접기 버튼 */}
+                {compact && hiddenCount > 0 && (
+                  <button
+                    onClick={() => setShowAllRanking(!showAllRanking)}
+                    className="w-full flex items-center justify-center gap-1 text-sm text-primary hover:bg-gray-50 py-2 rounded-lg transition-colors"
+                  >
+                    {showAllRanking ? (
+                      <>
+                        접기 <ChevronUp className="h-4 w-4" />
+                      </>
+                    ) : (
+                      <>
+                        {hiddenCount}개 더보기 <ChevronDown className="h-4 w-4" />
+                      </>
+                    )}
+                  </button>
+                )}
+
+                {!compact && domainStats.length > 10 && (
+                  <div className="text-center text-sm text-muted-foreground pt-2">
+                    +{domainStats.length - 10}개 도메인 더 있음
                   </div>
-                  <Progress value={percentage} className="h-2" />
-                </div>
-              )
-            })}
-
-            {domainStats.length > 10 && (
-              <div className="text-center text-sm text-muted-foreground pt-2">
-                +{domainStats.length - 10}개 도메인 더 있음
+                )}
               </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>}
+            </CardContent>
+          </Card>
+        )
+      })()}
 
     </div>
   )

@@ -538,14 +538,25 @@ export function AnalysisDetailClient({ analysis }: AnalysisDetailClientProps) {
         section="myDomain"
       />
 
-      {/* 상위 경쟁사 분석 + 브랜드 언급 분석 (2컬럼) */}
+      {/* 상위 인용 도메인 + 전체 도메인 순위 (왼쪽) | 경쟁사 브랜드 분석 (오른쪽) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <CompetitorComparison
-          results={results}
-          myDomain={analysis.my_domain || undefined}
-          crossValidation={crossValidation}
-          section="topCompetitors"
-        />
+        {/* 왼쪽 열: 상위 인용 도메인 + 전체 도메인 순위 */}
+        <div className="space-y-6">
+          <CompetitorComparison
+            results={results}
+            myDomain={analysis.my_domain || undefined}
+            crossValidation={crossValidation}
+            section="topCompetitors"
+          />
+          <CompetitorComparison
+            results={results}
+            myDomain={analysis.my_domain || undefined}
+            crossValidation={crossValidation}
+            section="ranking"
+            compact
+          />
+        </div>
+        {/* 오른쪽 열: 경쟁사 브랜드 분석 */}
         <BrandMentionCard
           brandMentionAnalysis={summary.brandMentionAnalysis}
           myBrand={analysis.my_brand || undefined}
@@ -554,14 +565,6 @@ export function AnalysisDetailClient({ analysis }: AnalysisDetailClientProps) {
           }}
         />
       </div>
-
-      {/* 전체 도메인 순위 */}
-      <CompetitorComparison
-        results={results}
-        myDomain={analysis.my_domain || undefined}
-        crossValidation={crossValidation}
-        section="ranking"
-      />
 
       {/* GEO 최적화 권장사항 */}
       <CompetitorComparison
