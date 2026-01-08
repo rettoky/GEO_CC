@@ -480,9 +480,9 @@ export function AnalysisDetailView({ analysis }: AnalysisDetailViewProps) {
       />
 
       {/* 상위 인용 도메인 + 전체 도메인 순위 (왼쪽) | 경쟁사 브랜드 분석 (오른쪽) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         {/* 왼쪽 열: 상위 인용 도메인 + 전체 도메인 순위 */}
-        <div className="space-y-6">
+        <div className="flex flex-col gap-6">
           <CompetitorComparison
             results={results}
             myDomain={analysis.my_domain || undefined}
@@ -498,13 +498,15 @@ export function AnalysisDetailView({ analysis }: AnalysisDetailViewProps) {
           />
         </div>
         {/* 오른쪽 열: 경쟁사 브랜드 분석 */}
-        <BrandMentionCard
-          brandMentionAnalysis={summary.brandMentionAnalysis}
-          myBrand={analysis.my_brand || undefined}
-          onCompetitorClick={(brandName, aliases) => {
-            allQueryResultsRef.current?.setCompetitorFilterAndScroll(brandName, aliases)
-          }}
-        />
+        <div className="h-full">
+          <BrandMentionCard
+            brandMentionAnalysis={summary.brandMentionAnalysis}
+            myBrand={analysis.my_brand || undefined}
+            onCompetitorClick={(brandName, aliases) => {
+              allQueryResultsRef.current?.setCompetitorFilterAndScroll(brandName, aliases)
+            }}
+          />
+        </div>
       </div>
 
       {/* 감성 분석 대시보드 - myBrand에 sentimentAnalysis가 있을 때만 표시 */}
