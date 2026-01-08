@@ -539,7 +539,7 @@ export function AnalysisDetailClient({ analysis }: AnalysisDetailClientProps) {
       />
 
       {/* 상위 인용 도메인 + 전체 도메인 순위 (왼쪽) | 경쟁사 브랜드 분석 (오른쪽) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
         {/* 왼쪽 열: 상위 인용 도메인 + 전체 도메인 순위 */}
         <div className="flex flex-col gap-6">
           <CompetitorComparison
@@ -548,24 +548,24 @@ export function AnalysisDetailClient({ analysis }: AnalysisDetailClientProps) {
             crossValidation={crossValidation}
             section="topCompetitors"
           />
-          <CompetitorComparison
-            results={results}
-            myDomain={analysis.my_domain || undefined}
-            crossValidation={crossValidation}
-            section="ranking"
-            compact
-          />
+          <div className="flex-1 min-h-0">
+            <CompetitorComparison
+              results={results}
+              myDomain={analysis.my_domain || undefined}
+              crossValidation={crossValidation}
+              section="ranking"
+              compact
+            />
+          </div>
         </div>
         {/* 오른쪽 열: 경쟁사 브랜드 분석 */}
-        <div className="h-full">
-          <BrandMentionCard
-            brandMentionAnalysis={summary.brandMentionAnalysis}
-            myBrand={analysis.my_brand || undefined}
-            onCompetitorClick={(brandName, aliases) => {
-              allQueryResultsRef.current?.setCompetitorFilterAndScroll(brandName, aliases)
-            }}
-          />
-        </div>
+        <BrandMentionCard
+          brandMentionAnalysis={summary.brandMentionAnalysis}
+          myBrand={analysis.my_brand || undefined}
+          onCompetitorClick={(brandName, aliases) => {
+            allQueryResultsRef.current?.setCompetitorFilterAndScroll(brandName, aliases)
+          }}
+        />
       </div>
 
       {/* GEO 최적화 권장사항 */}

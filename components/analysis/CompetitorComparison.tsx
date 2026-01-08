@@ -553,11 +553,11 @@ export function CompetitorComparison({ results, myDomain, crossValidation, secti
                 </Badge>
               </CardTitle>
             </CardHeader>
-            <CardContent className={compact ? 'flex-1 flex flex-col min-h-0' : ''}>
+            <CardContent className={compact ? 'flex-1 flex flex-col min-h-0 pb-4' : ''}>
               {compact && showAllRanking ? (
-                // 펼친 상태: 고정 높이 스크롤 영역
-                <div className="flex flex-col h-[400px]">
-                  <ScrollArea className="flex-1">
+                // 펼친 상태: 부모 높이에 맞춰 스크롤 영역
+                <div className="flex flex-col flex-1 min-h-0">
+                  <ScrollArea className="flex-1 min-h-0">
                     <div className="space-y-2 pr-4">
                       {domainStats.map((stat, index) => renderDomainItem(stat, index))}
                     </div>
