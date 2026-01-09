@@ -539,24 +539,22 @@ export function AnalysisDetailClient({ analysis }: AnalysisDetailClientProps) {
       />
 
       {/* 상위 인용 도메인 + 전체 도메인 순위 (왼쪽) | 경쟁사 브랜드 분석 (오른쪽) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* 왼쪽 열: 상위 인용 도메인 + 전체 도메인 순위 */}
-        <div className="flex flex-col gap-6">
+        <div className="space-y-6">
           <CompetitorComparison
             results={results}
             myDomain={analysis.my_domain || undefined}
             crossValidation={crossValidation}
             section="topCompetitors"
           />
-          <div className="flex-1 min-h-0">
-            <CompetitorComparison
-              results={results}
-              myDomain={analysis.my_domain || undefined}
-              crossValidation={crossValidation}
-              section="ranking"
-              compact
-            />
-          </div>
+          <CompetitorComparison
+            results={results}
+            myDomain={analysis.my_domain || undefined}
+            crossValidation={crossValidation}
+            section="ranking"
+            compact
+          />
         </div>
         {/* 오른쪽 열: 경쟁사 브랜드 분석 */}
         <BrandMentionCard

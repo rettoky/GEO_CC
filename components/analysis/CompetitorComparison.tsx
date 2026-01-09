@@ -544,8 +544,8 @@ export function CompetitorComparison({ results, myDomain, crossValidation, secti
         }
 
         return (
-          <Card className={compact ? 'h-full flex flex-col' : ''}>
-            <CardHeader className={compact ? 'pb-2 shrink-0' : ''}>
+          <Card>
+            <CardHeader className={compact ? 'pb-2' : ''}>
               <CardTitle className="flex items-center justify-between">
                 <span className={compact ? 'text-base' : ''}>전체 도메인 순위</span>
                 <Badge variant="outline">
@@ -553,11 +553,11 @@ export function CompetitorComparison({ results, myDomain, crossValidation, secti
                 </Badge>
               </CardTitle>
             </CardHeader>
-            <CardContent className={compact ? 'flex-1 flex flex-col min-h-0 pb-4' : ''}>
+            <CardContent>
               {compact && showAllRanking ? (
-                // 펼친 상태: 부모 높이에 맞춰 스크롤 영역
-                <div className="flex flex-col flex-1 min-h-0">
-                  <ScrollArea className="flex-1 min-h-0">
+                // 펼친 상태: 고정 높이 스크롤 영역
+                <div>
+                  <ScrollArea className="h-[360px]">
                     <div className="space-y-2 pr-4">
                       {domainStats.map((stat, index) => renderDomainItem(stat, index))}
                     </div>
@@ -565,7 +565,7 @@ export function CompetitorComparison({ results, myDomain, crossValidation, secti
                   {/* 접기 버튼 */}
                   <button
                     onClick={() => setShowAllRanking(false)}
-                    className="w-full flex items-center justify-center gap-1 text-sm text-primary hover:bg-gray-50 py-2 rounded-lg transition-colors mt-2 shrink-0"
+                    className="w-full flex items-center justify-center gap-1 text-sm text-primary hover:bg-gray-50 py-2 rounded-lg transition-colors mt-2"
                   >
                     접기 <ChevronUp className="h-4 w-4" />
                   </button>
