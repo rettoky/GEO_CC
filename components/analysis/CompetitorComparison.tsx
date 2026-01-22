@@ -420,11 +420,10 @@ export function CompetitorComparison({ results, myDomain, crossValidation, secti
                   {myDomainStats && (
                     <div className="mt-3 pt-3 border-t">
                       <div className="text-xs text-muted-foreground mb-1">vs 내 도메인</div>
-                      <div className={`text-sm font-semibold ${
-                        domain.citationCount > myDomainStats.citationCount
-                          ? 'text-red-600'
-                          : 'text-green-600'
-                      }`}>
+                      <div className={`text-sm font-semibold ${domain.citationCount > myDomainStats.citationCount
+                        ? 'text-red-600'
+                        : 'text-green-600'
+                        }`}>
                         {domain.citationCount > myDomainStats.citationCount
                           ? `+${domain.citationCount - myDomainStats.citationCount}회 더 인용됨`
                           : domain.citationCount < myDomainStats.citationCount
@@ -465,11 +464,10 @@ export function CompetitorComparison({ results, myDomain, crossValidation, secti
           return (
             <div
               key={stat.domain}
-              className={`${compact ? 'p-2.5' : 'p-4'} rounded-lg border-2 transition-all ${
-                stat.isMyDomain
-                  ? 'bg-blue-50 border-blue-400 shadow-md'
-                  : 'bg-white border-gray-200 hover:border-gray-300'
-              }`}
+              className={`${compact ? 'p-2.5' : 'p-4'} rounded-lg border-2 transition-all ${stat.isMyDomain
+                ? 'bg-blue-50 border-blue-400 shadow-md'
+                : 'bg-white border-gray-200 hover:border-gray-300'
+                }`}
             >
               <div className={`flex items-center justify-between ${compact ? 'mb-1.5' : 'mb-2'}`}>
                 <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -496,11 +494,10 @@ export function CompetitorComparison({ results, myDomain, crossValidation, secti
                         {ACTIVE_LLMS.map(llm => (
                           <div
                             key={llm}
-                            className={`w-4 h-4 rounded text-[10px] flex items-center justify-center font-bold ${
-                              stat.llms.includes(llm)
-                                ? 'bg-green-500 text-white'
-                                : 'bg-gray-200 text-gray-400'
-                            }`}
+                            className={`w-4 h-4 rounded text-[10px] flex items-center justify-center font-bold ${stat.llms.includes(llm)
+                              ? 'bg-green-500 text-white'
+                              : 'bg-gray-200 text-gray-400'
+                              }`}
                             title={LLM_NAMES[llm]}
                           >
                             {LLM_NAMES[llm]?.charAt(0)}
@@ -523,11 +520,10 @@ export function CompetitorComparison({ results, myDomain, crossValidation, secti
                         {ACTIVE_LLMS.map(llm => (
                           <div
                             key={llm}
-                            className={`w-6 h-6 rounded text-xs flex items-center justify-center font-bold ${
-                              stat.llms.includes(llm)
-                                ? 'bg-green-500 text-white'
-                                : 'bg-gray-200 text-gray-400'
-                            }`}
+                            className={`w-6 h-6 rounded text-xs flex items-center justify-center font-bold ${stat.llms.includes(llm)
+                              ? 'bg-green-500 text-white'
+                              : 'bg-gray-200 text-gray-400'
+                              }`}
                             title={LLM_NAMES[llm]}
                           >
                             {LLM_NAMES[llm]?.charAt(0)}
@@ -557,7 +553,7 @@ export function CompetitorComparison({ results, myDomain, crossValidation, secti
               {compact && showAllRanking ? (
                 // 펼친 상태: 고정 높이 스크롤 영역
                 <div>
-                  <ScrollArea className="h-[360px]">
+                  <ScrollArea className="h-[500px]">
                     <div className="space-y-2 pr-4">
                       {domainStats.map((stat, index) => renderDomainItem(stat, index))}
                     </div>
